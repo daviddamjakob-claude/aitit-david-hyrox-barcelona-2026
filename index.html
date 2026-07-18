@@ -83,6 +83,7 @@ body{
 #panel-sim.active{display:flex; align-items:center; justify-content:center}
 
 /* ---------- BOARD ---------- */
+.week-picker{display:none}
 .board{display:flex; gap:34px; align-items:flex-start; width:max-content}
 .phase{display:flex; flex-direction:column; gap:14px}
 .phase-head{display:flex; align-items:baseline; gap:12px; padding-bottom:2px}
@@ -247,9 +248,26 @@ body{
 
 @media (max-width:700px){
   #printBtn,#downloadBtn{display:none}
-  .brandrow{flex-wrap:wrap}
-  .headmeta{order:3; flex:1 1 100%; border-left:none; padding-left:0; margin-left:0}
-  .plan-title,.plan-target{max-width:100%}
+  .plan-title,.plan-target{max-width:none}
+  /* Take the saved-flag out of the flex row so headmeta can claim the full remaining width */
+  .brandrow{position:relative}
+  .controls{position:absolute; top:14px; right:28px}
+  .saved{background:var(--s1); padding:3px 8px; border-radius:20px; box-shadow:var(--shadow)}
+
+  /* Week headers become a horizontally-scrolling chip menu; the board below shows
+     one week at a time and only ever scrolls vertically — two single-axis scroll
+     regions instead of one that tries to do both. */
+  .week-picker{display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:2px 2px 12px; margin-bottom:2px}
+  .week-picker::-webkit-scrollbar{display:none}
+  .week-chip{flex:0 0 auto; font-family:"Space Grotesk"; font-weight:600; font-size:12.5px; letter-spacing:0.02em; padding:8px 15px; border-radius:20px; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid); white-space:nowrap; cursor:pointer; transition:.15s}
+  .week-chip.active{background:var(--accent); border-color:var(--accent); color:#fff}
+  .week-chip .now-dot{color:var(--accent); margin-left:3px}
+  .week-chip.active .now-dot{color:#fff}
+
+  #board{width:100%}
+  .phase{width:100%}
+  .phase-cols{width:100%}
+  .col{width:100%; flex:1 1 100%}
 }
 </style>
 </head>
@@ -275,7 +293,7 @@ body{
   </nav>
 </header>
 
-<section class="panel active" id="panel-log"><div class="board" id="board"></div></section>
+<section class="panel active" id="panel-log"><div class="week-picker" id="weekPicker"></div><div class="board" id="board"></div></section>
 
 <section class="panel" id="panel-analytics"><div id="analytics"></div></section>
 
@@ -398,6 +416,7 @@ function weekStatus(w){
   if(today<start) return 'future';
   return 'current';
 }
+let mobileSelectedWeek=(WEEKS.find(w=>weekStatus(w)==='current')||WEEKS[0]).id;
 
 /* ---------------- STATE ---------------- */
 const STORE_KEY = 'aitit_training_plan_v2';
@@ -494,6 +513,33 @@ function buildBoard(){
     phase.appendChild(cols); board.appendChild(phase);
   });
   WEEKS.forEach(w=>{ renderWorkouts(w.id); updateSummary(w.id); });
+  buildWeekPicker(); applyMobileFilter();
+}
+
+/* ---------------- MOBILE WEEK PICKER ---------------- */
+const weekPicker=document.getElementById('weekPicker');
+function buildWeekPicker(){
+  weekPicker.innerHTML='';
+  WEEKS.forEach(w=>{
+    const chip=el('button','week-chip'); chip.type='button'; chip.dataset.week=w.id;
+    chip.innerHTML=`Week ${w.num}${weekStatus(w)==='current'?'<span class="now-dot">●</span>':''}`;
+    chip.addEventListener('click',()=>selectMobileWeek(w.id));
+    weekPicker.appendChild(chip);
+  });
+}
+function selectMobileWeek(wid){ mobileSelectedWeek=wid; applyMobileFilter(); }
+function applyMobileFilter(){
+  const mobile=window.matchMedia('(max-width:700px)').matches;
+  weekPicker.querySelectorAll('.week-chip').forEach(ch=>{
+    const active=ch.dataset.week===mobileSelectedWeek;
+    ch.classList.toggle('active',active);
+    if(mobile&&active) ch.scrollIntoView({behavior:'auto',inline:'center',block:'nearest'});
+  });
+  board.querySelectorAll('.col').forEach(col=>{ col.style.display=(!mobile||col.dataset.week===mobileSelectedWeek)?'':'none'; });
+  board.querySelectorAll('.phase').forEach(ph=>{
+    const hasVisible=!mobile||[...ph.querySelectorAll('.col')].some(c=>c.dataset.week===mobileSelectedWeek);
+    ph.style.display=hasVisible?'':'none';
+  });
 }
 function buildColumn(w, idx){
   const status=weekStatus(w);
@@ -787,30 +833,12 @@ function el(tag,cls){ const e=document.createElement(tag); if(cls)e.className=cl
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); if(isNaN(d))return iso; return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }
 
-/* ---------------- TOUCH: confine horizontal panning to the week header ---------------- */
-(function(){
-  const scroller=document.getElementById('panel-log');
-  let sx=0, sy=0, axis=null, headerTouch=false;
-  scroller.addEventListener('touchstart',e=>{
-    if(e.touches.length!==1){ headerTouch=true; return; } // multi-touch (pinch-zoom etc.): don't interfere
-    const t=e.touches[0];
-    sx=t.clientX; sy=t.clientY; axis=null;
-    headerTouch=!!e.target.closest('.col-head');
-  },{passive:true});
-  scroller.addEventListener('touchmove',e=>{
-    if(headerTouch||e.touches.length!==1)return;
-    const t=e.touches[0];
-    if(!axis){
-      const dx=t.clientX-sx, dy=t.clientY-sy;
-      if(Math.abs(dx)>6||Math.abs(dy)>6) axis=Math.abs(dx)>Math.abs(dy)?'x':'y';
-    }
-    if(axis==='x') e.preventDefault();
-  },{passive:false});
-})();
-
 /* ---------------- INIT ---------------- */
 buildBoard();
 pullRemote();
+window.matchMedia('(max-width:700px)').addEventListener('change',applyMobileFilter);
+let resizeTimer;
+window.addEventListener('resize',()=>{ clearTimeout(resizeTimer); resizeTimer=setTimeout(applyMobileFilter,150); });
 </script>
 </body>
 </html>
