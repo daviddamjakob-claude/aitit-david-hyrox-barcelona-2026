@@ -227,6 +227,12 @@ body{
   #panel-analytics,#panel-sim{display:none !important}
   .board{flex-wrap:wrap}
 }
+
+@media (max-width:700px){
+  #printBtn,#downloadBtn{display:none}
+  /* Horizontal swipe only drives the week header; content below only pans vertically */
+  .card,.workouts,.add-btn{touch-action:pan-y}
+}
 </style>
 </head>
 <body>
