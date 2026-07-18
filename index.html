@@ -359,6 +359,10 @@ function weekStatus(w){
 const STORE_KEY = 'aitit_training_plan_v2';
 let memoryOnly = false;
 
+/* ---------------- CLOUD SYNC ---------------- */
+const SYNC_URL = 'https://aitit-sync.david-damjakob.workers.dev/sync';
+const SYNC_SECRET = 'cbf9882171cc81bad26c40cf971139b54d1c1fd976d7211e';
+
 function newState(){
   const weeks = {};
   WEEKS.forEach(w=>{ const t={}; ACTIVITIES.forEach(a=> t[a.key]={planned:0,comment:''}); weeks[w.id]={targets:t,review:'',workouts:[]}; });
@@ -398,11 +402,39 @@ let state = load() || seedState();
 
 let saveTimer;
 function save(){
-  if(memoryOnly) return flagSaved('memory only');
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); flagSaved('saved'); }
-  catch(e){ memoryOnly=true; flagSaved('memory only'); }
+  if(!memoryOnly){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch(e){ memoryOnly=true; }
+  }
+  flagSaved(memoryOnly ? 'memory only' : 'saved');
+  pushRemote();
 }
 function flagSaved(txt){ const el=document.getElementById('savedFlag'); el.textContent=txt; el.classList.add('show'); clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove('show'),1200); }
+
+let pushTimer;
+function pushRemote(){
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(()=>{
+    fetch(SYNC_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Sync-Secret':SYNC_SECRET},body:JSON.stringify(state)})
+      .then(res=>{ flagSaved(res.ok?'synced':'sync error'); })
+      .catch(()=> flagSaved('offline'));
+  },800);
+}
+async function pullRemote(){
+  try{
+    const res=await fetch(SYNC_URL,{headers:{'X-Sync-Secret':SYNC_SECRET}});
+    if(!res.ok) throw new Error('sync GET failed: '+res.status);
+    const data=await res.json();
+    if(data){
+      state=migrate(data);
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+      titleInput.value=state.title; targetInput.value=state.target;
+      buildBoard();
+      if(document.getElementById('panel-analytics').classList.contains('active')) renderAnalytics();
+      flagSaved('synced');
+    }
+  }catch(e){ flagSaved('offline'); }
+}
 
 /* ---------------- BOARD ---------------- */
 const board = document.getElementById('board');
@@ -637,6 +669,7 @@ function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); if(isNaN(d))return iso
 
 /* ---------------- INIT ---------------- */
 buildBoard();
+pullRemote();
 </script>
 </body>
 </html>

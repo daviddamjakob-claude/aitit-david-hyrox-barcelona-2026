@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "aitit-sync",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-07-01",
+  "kv_namespaces": [
+    { "binding": "AITIT_SYNC_KV", "id": "1f4aa67b91b84f6dab366f70574abb35" }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
