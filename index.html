@@ -247,8 +247,9 @@ body{
 
 @media (max-width:700px){
   #printBtn,#downloadBtn{display:none}
-  /* Horizontal swipe only drives the week header; content below only pans vertically */
-  .card,.workouts,.add-btn{touch-action:pan-y}
+  .brandrow{flex-wrap:wrap}
+  .headmeta{order:3; flex:1 1 100%; border-left:none; padding-left:0; margin-left:0}
+  .plan-title,.plan-target{max-width:100%}
 }
 </style>
 </head>
@@ -785,6 +786,27 @@ document.getElementById('printBtn').addEventListener('click',()=>window.print())
 function el(tag,cls){ const e=document.createElement(tag); if(cls)e.className=cls; return e; }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); if(isNaN(d))return iso; return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }
+
+/* ---------------- TOUCH: confine horizontal panning to the week header ---------------- */
+(function(){
+  const scroller=document.getElementById('panel-log');
+  let sx=0, sy=0, axis=null, headerTouch=false;
+  scroller.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1){ headerTouch=true; return; } // multi-touch (pinch-zoom etc.): don't interfere
+    const t=e.touches[0];
+    sx=t.clientX; sy=t.clientY; axis=null;
+    headerTouch=!!e.target.closest('.col-head');
+  },{passive:true});
+  scroller.addEventListener('touchmove',e=>{
+    if(headerTouch||e.touches.length!==1)return;
+    const t=e.touches[0];
+    if(!axis){
+      const dx=t.clientX-sx, dy=t.clientY-sy;
+      if(Math.abs(dx)>6||Math.abs(dy)>6) axis=Math.abs(dx)>Math.abs(dy)?'x':'y';
+    }
+    if(axis==='x') e.preventDefault();
+  },{passive:false});
+})();
 
 /* ---------------- INIT ---------------- */
 buildBoard();
