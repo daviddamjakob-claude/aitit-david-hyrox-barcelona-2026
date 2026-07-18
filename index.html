@@ -154,7 +154,24 @@ body{
 .wactions button{background:none; border:none; cursor:pointer; font-family:"Space Grotesk"; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); padding:0; transition:.15s}
 .wactions button:hover{color:var(--accent)}
 .wactions button.del:hover{color:#c0392b}
+.wactions button:disabled{opacity:.5; cursor:default; color:var(--muted)}
 .empty-w{font-size:11px; color:var(--muted2); text-align:center; padding:8px; letter-spacing:0.04em; font-style:italic}
+
+/* ---------- WORKOUT PHOTOS ---------- */
+.wphotos{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:9px}
+.wphotos:empty{display:none; margin:0}
+.wphoto{width:52px; height:52px; border-radius:6px; overflow:hidden; border:0.5px solid var(--cardborder); background:var(--s3)}
+.wphoto img{width:100%; height:100%; object-fit:cover; display:block; cursor:pointer}
+
+.lightbox{position:fixed; inset:0; background:rgba(12,21,18,.82); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; z-index:60; padding:24px}
+.lightbox.show{display:flex}
+.lightbox-inner{position:relative; max-width:min(720px,92vw); max-height:88vh; display:flex; flex-direction:column; align-items:center; gap:12px}
+.lightbox img{max-width:100%; max-height:72vh; border-radius:8px; box-shadow:0 12px 40px rgba(12,21,18,.4)}
+.lightbox-bar{display:flex; align-items:center; gap:18px}
+.lightbox-bar button{font-family:"Space Grotesk"; font-weight:500; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#fff; background:rgba(255,255,255,.12); border:0.5px solid rgba(255,255,255,.3); border-radius:5px; padding:7px 12px; cursor:pointer; transition:.15s}
+.lightbox-bar button:hover{background:rgba(255,255,255,.22)}
+.lightbox-bar button.lb-del:hover{background:#c0392b; border-color:#c0392b}
+.lightbox-count{font-size:10.5px; letter-spacing:0.1em; color:rgba(255,255,255,.7)}
 
 /* ---------- ANALYTICS ---------- */
 .an-head{display:flex; align-items:baseline; gap:12px; margin-bottom:22px}
@@ -291,6 +308,21 @@ body{
   </div>
 </div>
 
+<!-- photo lightbox -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner">
+    <img id="lbImg" alt="workout photo">
+    <div class="lightbox-bar">
+      <button id="lbPrev">‹ prev</button>
+      <span class="lightbox-count" id="lbCount"></span>
+      <button id="lbNext">next ›</button>
+      <button class="lb-del" id="lbDelete">delete</button>
+      <button id="lbClose">close</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="photoFileInput" accept="image/*" multiple style="display:none">
+
 <script>
 /* ---------------- CONFIG ---------------- */
 const ACTIVITIES = [
@@ -302,6 +334,11 @@ const ACTIVITIES = [
 ];
 const ACT_MAP = Object.fromEntries(ACTIVITIES.map(a=>[a.key,a.label]));
 const ACT_SHORT = {zone2:'Zone 2', runIntervals:'Run int.', exerciseIntervals:'Exercise int.', strength:'Strength', mobility:'Mobility'};
+
+/* ---------------- PHOTOS (Cloudinary, same account as training-dashboard-v2) ---------------- */
+const CLOUDINARY_CLOUD = 'dglx8phdf';
+const CLOUDINARY_PRESET = 'claude_strava_dashboard';
+const CLOUDINARY_TAG = 'aitit-hyrox'; // tags uploads from this app, since the account is shared with training-dashboard-v2
 
 const FIELDS = {
   zone2:[
@@ -548,7 +585,10 @@ function workoutCard(wid,x){
   const dets=x.details?`<div class="wdetails">${escapeHtml(x.details)}</div>`:'';
   c.innerHTML=`<div class="wcard-top"><span class="wtag">${ACT_MAP[x.type]}</span><span class="wdate">${dt}</span></div>
     ${mk?`<div class="wmetrics">${mk}</div>`:''}${rv}${dets}
-    <div class="wactions"><button data-edit>edit</button><button class="del" data-del>delete</button></div>`;
+    <div class="wphotos" data-photos-strip></div>
+    <div class="wactions"><button data-photos>add photos</button><button data-edit>edit</button><button class="del" data-del>delete</button></div>`;
+  renderPhotoStrip(c.querySelector('[data-photos-strip]'), wid, x.id);
+  c.querySelector('[data-photos]').addEventListener('click',()=>openPhotoPicker(wid,x.id));
   c.querySelector('[data-edit]').addEventListener('click',()=>openModal(wid,x.id));
   c.querySelector('[data-del]').addEventListener('click',()=>{
     if(!confirm('Delete this workout?'))return;
@@ -557,6 +597,79 @@ function workoutCard(wid,x){
   });
   return c;
 }
+
+/* ---------------- PHOTOS ---------------- */
+function findWorkout(wid,id){ return state.weeks[wid].workouts.find(w=>w.id===id); }
+function renderPhotoStrip(stripEl,wid,id){
+  const wo=findWorkout(wid,id); if(!wo)return;
+  const photos=wo.photos||[];
+  stripEl.innerHTML=photos.map((p,i)=>`<div class="wphoto"><img src="${p.secure_url}" loading="lazy" data-photo-idx="${i}"></div>`).join('');
+  stripEl.querySelectorAll('img').forEach(img=> img.addEventListener('click',()=> openLightbox(wid,id,Number(img.dataset.photoIdx))));
+}
+
+let photoUploadTarget=null;
+const photoFileInput=document.getElementById('photoFileInput');
+function openPhotoPicker(wid,id){ photoUploadTarget={wid,id}; photoFileInput.value=''; photoFileInput.click(); }
+photoFileInput.addEventListener('change',async()=>{
+  const files=[...photoFileInput.files]; const target=photoUploadTarget;
+  if(!files.length||!target)return;
+  const wo=findWorkout(target.wid,target.id); if(!wo)return;
+  if(!wo.photos)wo.photos=[];
+  for(const file of files){
+    flagSaved('uploading…');
+    try{
+      const res=await uploadPhotoFile(file);
+      wo.photos.push({public_id:res.public_id, secure_url:res.secure_url});
+      save();
+      renderWorkouts(target.wid);
+    }catch(e){
+      flagSaved('upload failed');
+    }
+  }
+});
+function uploadPhotoFile(file){
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    const fd=new FormData();
+    fd.append('file',file);
+    fd.append('upload_preset',CLOUDINARY_PRESET);
+    fd.append('tags',CLOUDINARY_TAG);
+    xhr.onload=()=>{ if(xhr.status===200) resolve(JSON.parse(xhr.responseText)); else reject(new Error('Upload failed '+xhr.status)); };
+    xhr.onerror=()=>reject(new Error('Network error'));
+    xhr.open('POST',`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`);
+    xhr.send(fd);
+  });
+}
+
+/* ---------------- LIGHTBOX ---------------- */
+const lightbox=document.getElementById('lightbox'), lbImg=document.getElementById('lbImg'), lbCount=document.getElementById('lbCount');
+let lbState={wid:null,id:null,idx:0};
+function openLightbox(wid,id,idx){ lbState={wid,id,idx}; showLightbox(); lightbox.classList.add('show'); }
+function closeLightbox(){ lightbox.classList.remove('show'); }
+function showLightbox(){
+  const wo=findWorkout(lbState.wid,lbState.id); const photos=(wo&&wo.photos)||[];
+  if(!photos.length){ closeLightbox(); return; }
+  lbState.idx=(lbState.idx+photos.length)%photos.length;
+  lbImg.src=photos[lbState.idx].secure_url;
+  lbCount.textContent=`${lbState.idx+1} / ${photos.length}`;
+}
+document.getElementById('lbPrev').addEventListener('click',()=>{ lbState.idx--; showLightbox(); });
+document.getElementById('lbNext').addEventListener('click',()=>{ lbState.idx++; showLightbox(); });
+document.getElementById('lbClose').addEventListener('click',closeLightbox);
+document.getElementById('lbDelete').addEventListener('click',()=>{
+  const wo=findWorkout(lbState.wid,lbState.id); if(!wo||!wo.photos)return;
+  if(!confirm('Delete this photo?'))return;
+  wo.photos.splice(lbState.idx,1);
+  save(); renderWorkouts(lbState.wid);
+  if(wo.photos.length) showLightbox(); else closeLightbox();
+});
+lightbox.addEventListener('click',e=>{ if(e.target===lightbox)closeLightbox(); });
+document.addEventListener('keydown',e=>{
+  if(!lightbox.classList.contains('show'))return;
+  if(e.key==='Escape')closeLightbox();
+  if(e.key==='ArrowLeft'){ lbState.idx--; showLightbox(); }
+  if(e.key==='ArrowRight'){ lbState.idx++; showLightbox(); }
+});
 
 /* ---------------- MODAL ---------------- */
 const overlay=document.getElementById('overlay'), mType=document.getElementById('mType'),
