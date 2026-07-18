@@ -179,9 +179,9 @@ body{
 .abar > i{display:block; height:100%; background:var(--accent); border-radius:4px}
 .abar.soft > i{background:var(--heromid)}
 .wk-list{display:flex; flex-direction:column; gap:9px; max-height:340px; overflow:auto}
-.wk-item{display:grid; grid-template-columns:64px 1fr 52px; align-items:center; gap:10px; font-size:11px}
-.wk-item .wl{color:var(--ink); font-weight:600}
-.wk-item .wl small{display:block; color:var(--muted); font-weight:400; font-size:9px; letter-spacing:0.04em}
+.wk-item{display:grid; grid-template-columns:100px 1fr 52px; align-items:center; gap:10px; font-size:11px}
+.wk-item .wl{color:var(--ink); font-weight:600; white-space:nowrap}
+.wk-item .wl small{display:block; color:var(--muted); font-weight:400; font-size:9px; letter-spacing:0.04em; white-space:nowrap}
 .wk-item .wr{text-align:right; color:var(--mid); font-variant-numeric:tabular-nums}
 .wk-item .abar{grid-column:auto}
 .feedback{display:flex; gap:12px; flex-wrap:wrap}
