@@ -111,6 +111,10 @@ body{
 .trow:first-of-type{padding-top:0}
 .trow-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
 .act-name{font-size:12px; font-weight:600; color:var(--mid); letter-spacing:0.01em}
+.info-tip{position:relative; display:inline-block; margin-left:5px; font-size:11px; color:var(--muted2); cursor:help; outline:none}
+.info-tip:hover, .info-tip:focus{color:var(--accent)}
+.info-pop{display:none; position:absolute; left:0; bottom:calc(100% + 8px); width:220px; max-width:70vw; background:#fff; color:var(--mid); border:0.5px solid var(--cardborder); border-radius:6px; padding:10px 12px; font-size:11px; font-weight:400; line-height:1.5; letter-spacing:0; text-transform:none; box-shadow:0 8px 24px rgba(12,21,18,.16); z-index:20; white-space:normal; text-align:left}
+.info-tip:hover .info-pop, .info-tip:focus .info-pop{display:block}
 .stepper{display:flex; align-items:center; gap:6px}
 .stepper .done{font-size:10px; color:var(--accent); letter-spacing:0.04em; min-width:24px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600}
 .stepper button{width:22px; height:22px; border-radius:4px; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid); cursor:pointer; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; transition:.15s}
@@ -348,12 +352,19 @@ body{
 const ACTIVITIES = [
   {key:'zone2',            label:'Zone 2 Cardio'},
   {key:'runIntervals',     label:'Run Intervals'},
-  {key:'exerciseIntervals',label:'Exercise Intervals'},
+  {key:'exerciseIntervals',label:'Hybrid Intervals'},
   {key:'strength',         label:'Strength'},
   {key:'mobility',         label:'Mobility & Recovery'},
 ];
 const ACT_MAP = Object.fromEntries(ACTIVITIES.map(a=>[a.key,a.label]));
-const ACT_SHORT = {zone2:'Zone 2', runIntervals:'Run int.', exerciseIntervals:'Exercise int.', strength:'Strength', mobility:'Mobility'};
+const ACT_SHORT = {zone2:'Zone 2', runIntervals:'Run int.', exerciseIntervals:'Hybrid int.', strength:'Strength', mobility:'Mobility'};
+const ACT_INFO = {
+  zone2:'Longer, aerobic effort — which means that you avoid the high intensity zones. Steered by HR, keep the average at 65–75% of your true max (approx. 220 - age). This should be a pace at which you could still have a conversation. Ideally aim for 60+min, especially for your main Zone 2 session in a week. Possible to alternate runs with cycling or even row/ski erg.',
+  runIntervals:'Intense efforts separated by short breaks. Common intervals are 400m (10-20x), 1km or 1.2km (4-8x), 2km (3-5x). Breaks are 1-2min at moderate walking pace. Total work session length varies between 30-60min, ideally with an additional warm-up and cool-down at relaxed pace (~1km each).',
+  exerciseIntervals:'Intense efforts separated by short breaks. Typically with a mix of row erg, ski erg and running sets, commonly mixed with burpee jumps, lunges and wall balls. Shorten the breaks over time — races are won on tired legs and in the transitions between runs and exercises. Total work session length varies between 45-60min.',
+  strength:'Preference-led. Can but doesn\'t need to have a Hyrox focus (lower-body and leg strength, grip strength, sled push & pull work).',
+  mobility:'Preference-led. Effective options include but are not limited to yoga, stretching, mobility, massage or sauna.',
+};
 
 /* ---------------- PHOTOS (Cloudinary, same account as training-dashboard-v2) ---------------- */
 const CLOUDINARY_CLOUD = 'dglx8phdf';
@@ -556,7 +567,7 @@ function buildColumn(w, idx){
     const row=el('div','trow');
     row.innerHTML=`
       <div class="trow-top">
-        <span class="act-name">${a.label}</span>
+        <span class="act-name">${a.label}<span class="info-tip" tabindex="0">ⓘ<span class="info-pop">${escapeHtml(ACT_INFO[a.key])}</span></span></span>
         <div class="stepper">
           <span class="done" data-done="${a.key}">0/${t.planned}</span>
           <button data-step="dec" data-act="${a.key}">–</button>
