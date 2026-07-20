@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>aitit — training plan</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -586,7 +587,7 @@ function buildColumn(w, idx){
     <div class="bar"><i data-bar></i></div>
     <div class="pct" data-pct>0% of target</div>
     <div class="breakdown" data-breakdown></div>
-    <textarea class="plan-input" style="min-height:56px" data-review placeholder="personal week review…">${escapeHtml(state.weeks[w.id].review)}</textarea>`;
+    <textarea class="plan-input" style="min-height:56px" data-review placeholder="personal notes…">${escapeHtml(state.weeks[w.id].review)}</textarea>`;
   col.appendChild(sCard);
   col.appendChild(tCard);
 
