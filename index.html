@@ -1140,8 +1140,8 @@ function renderRunProgressChart(){
   const leftM=48, rightM=52, topM=14, bottomM=32;
   // Chart width is measured from the actual container so it always fills the available space —
   // no horizontal scroll on narrow screens, no wasted space on wide ones. Re-measured on resize.
-  const availW=Math.max(280, container.clientWidth||600);
-  const chartW=Math.max(160, availW-leftM-rightM);
+  const availW=container.clientWidth||600;
+  const chartW=Math.max(120, availW-leftM-rightM);
   const slotW=chartW/N;
   const chartH=200;
   const totalW=leftM+chartW+rightM, totalH=topM+chartH+bottomM;
