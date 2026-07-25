@@ -43,9 +43,10 @@ h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase
 .field label{display:block; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
 .field input,.field textarea{width:100%; background:var(--bg); border:0.5px solid var(--cardborder); color:var(--ink); font-family:"Space Grotesk"; font-size:13px; padding:9px 11px; border-radius:6px; outline:none}
 .field input:focus,.field textarea:focus{border-color:var(--accent)}
+.field input:disabled{background:var(--s3); color:var(--muted); cursor:not-allowed}
 .field textarea{resize:vertical; min-height:74px; line-height:1.55}
-.checks{display:flex; flex-wrap:wrap; gap:10px 16px}
-.checks label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--mid); font-weight:400; text-transform:none; letter-spacing:0}
+.checks{display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:2px}
+.checks label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--mid); font-weight:400; text-transform:none; letter-spacing:0; margin-bottom:0; padding:3px 0}
 .msg{font-size:11px; margin-top:10px; min-height:14px}
 .msg.err{color:#c0392b}
 .msg.ok{color:var(--accent)}
@@ -59,8 +60,12 @@ h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase
 .program-editor{display:none; margin-top:4px; padding:18px 0 6px; border-top:0.5px solid var(--s3)}
 .program-editor.show{display:block}
 .program-editor h4{font-family:"Syne"; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink); margin:0 0 12px}
-.phase-row{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px}
-.phase-row .field{margin-bottom:0}
+/* Shared grid so every phase row (including the empty add-phase row) shares identical
+   column tracks — a per-row grid would let differing last-column content widths drift out of alignment. */
+.phase-grid{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px 10px; align-items:center; margin-bottom:12px}
+.phase-grid .phase-row{display:contents}
+.phase-grid .field{margin-bottom:0}
+.phase-actions{display:flex; gap:8px; margin-bottom:4px}
 
 /* modals (create flows only) */
 .overlay{position:fixed; inset:0; background:rgba(12,21,18,.45); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; z-index:60; padding:24px}
@@ -81,6 +86,12 @@ h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase
 </div>
 
 <div class="section">
+  <div class="section-head"><h2>Training Programs</h2></div>
+  <div class="card"><div id="programList"></div></div>
+  <button class="btn mint create" id="openCreateProgramBtn">+ Create program</button>
+</div>
+
+<div class="section">
   <div class="section-head"><h2>Activities</h2></div>
   <div class="card" style="padding:16px 18px">
     <div id="activityTypeList"></div>
@@ -90,38 +101,19 @@ h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase
   <button class="btn mint create" id="openCreateActivityBtn">+ Create activity type</button>
 </div>
 
-<div class="section">
-  <div class="section-head"><h2>Training Programs</h2></div>
-  <div class="card"><div id="programList"></div></div>
-  <button class="btn mint create" id="openCreateProgramBtn">+ Create program</button>
-</div>
-
-<!-- Create athlete modal -->
-<div class="overlay" id="createAthleteModal">
+<!-- Create / manage athlete modal (shared by both flows) -->
+<div class="overlay" id="athleteModal">
   <div class="modal">
-    <h3>Create athlete</h3>
+    <h3 id="athleteModalTitle">Create athlete</h3>
     <div class="field"><label>Username</label><input id="newUsername"></div>
     <div class="field"><label>Password</label><input id="newPassword" type="text"></div>
     <div class="field"><label>Display name</label><input id="newDisplayName"></div>
     <div class="field"><label>Linked programs</label><div class="checks" id="newAthletePrograms"></div></div>
     <div class="modal-actions">
-      <button class="btn" data-close-modal="createAthleteModal">Cancel</button>
-      <button class="btn mint" id="createAthleteBtn">Create</button>
+      <button class="btn" data-close-modal="athleteModal">Cancel</button>
+      <button class="btn mint" id="athleteModalSubmitBtn">Create</button>
     </div>
     <div class="msg" id="athleteMsg"></div>
-  </div>
-</div>
-
-<!-- Edit password modal -->
-<div class="overlay" id="editPasswordModal">
-  <div class="modal">
-    <h3>Edit password</h3>
-    <div class="field"><label>New password</label><input id="epNewPassword" type="text"></div>
-    <div class="modal-actions">
-      <button class="btn" data-close-modal="editPasswordModal">Cancel</button>
-      <button class="btn mint" id="epSubmitBtn">Save</button>
-    </div>
-    <div class="msg" id="epMsg"></div>
   </div>
 </div>
 
@@ -184,35 +176,21 @@ async function loadAthletes(){
         <div class="meta">@${escapeHtml(a.username)} · ${a.programs.map(p=>escapeHtml(p.name)).join(', ') || 'no programs linked'}</div>
       </div>
       <div class="row-actions">
-        <button class="link" data-pwd="${a.id}">edit password</button>
+        <button class="link" data-manage="${a.id}">manage athlete</button>
         <button class="link danger" data-del="${a.id}">delete</button>
       </div>
     </div>`).join('') : '<div class="empty-note">No athletes yet.</div>';
-  list.querySelectorAll('[data-pwd]').forEach(btn=> btn.addEventListener('click', ()=> openEditPassword(Number(btn.dataset.pwd))));
+  list.querySelectorAll('[data-manage]').forEach(btn=> btn.addEventListener('click', ()=> openManageAthlete(Number(btn.dataset.manage))));
   list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=> deleteAthlete(Number(btn.dataset.del))));
   renderNewAthleteProgramChecks();
 }
-function renderNewAthleteProgramChecks(){
+function renderNewAthleteProgramChecks(checkedIds){
+  const checked = new Set((checkedIds||[]).map(String));
   const wrap = document.getElementById('newAthletePrograms');
-  wrap.innerHTML = programs.map(p=>`<label><input type="checkbox" value="${p.id}"> ${escapeHtml(p.name)}</label>`).join('') || '<span class="empty-note">Create a program first.</span>';
+  wrap.innerHTML = programs.map(p=>`<label><input type="checkbox" value="${p.id}" ${checked.has(String(p.id))?'checked':''}> ${escapeHtml(p.name)}</label>`).join('') || '<span class="empty-note">Create a program first.</span>';
 }
 
-let editingPasswordAthleteId = null;
-function openEditPassword(athleteId){
-  editingPasswordAthleteId = athleteId;
-  document.getElementById('epNewPassword').value = '';
-  document.getElementById('epMsg').textContent = '';
-  openModal('editPasswordModal');
-}
-document.getElementById('epSubmitBtn').addEventListener('click', async()=>{
-  const msg = document.getElementById('epMsg');
-  const password = document.getElementById('epNewPassword').value;
-  if(!password){ msg.className='msg err'; msg.textContent='Enter a new password.'; return; }
-  try{
-    await api(`/admin/athletes/${editingPasswordAthleteId}/password`, {method:'PUT', body: JSON.stringify({password})});
-    closeModal('editPasswordModal');
-  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
-});
+let editingAthleteId = null; // null = create mode, otherwise the athlete being managed
 async function deleteAthlete(athleteId){
   const a = athletes.find(x=>x.id===athleteId);
   if(!confirm(`Delete athlete "${a?a.displayName:athleteId}"? This cannot be undone.`)) return;
@@ -222,23 +200,46 @@ async function deleteAthlete(athleteId){
   }catch(e){ alert(e.message); }
 }
 document.getElementById('openCreateAthleteBtn').addEventListener('click', ()=>{
-  document.getElementById('newUsername').value='';
-  document.getElementById('newPassword').value='';
+  editingAthleteId = null;
+  document.getElementById('athleteModalTitle').textContent = 'Create athlete';
+  document.getElementById('newUsername').value=''; document.getElementById('newUsername').disabled = false;
+  document.getElementById('newPassword').value=''; document.getElementById('newPassword').placeholder='';
   document.getElementById('newDisplayName').value='';
   document.getElementById('athleteMsg').textContent='';
+  document.getElementById('athleteModalSubmitBtn').textContent='Create';
   renderNewAthleteProgramChecks();
-  openModal('createAthleteModal');
+  openModal('athleteModal');
 });
-document.getElementById('createAthleteBtn').addEventListener('click', async()=>{
+function openManageAthlete(athleteId){
+  const a = athletes.find(x=>x.id===athleteId);
+  if(!a) return;
+  editingAthleteId = athleteId;
+  document.getElementById('athleteModalTitle').textContent = 'Manage athlete';
+  document.getElementById('newUsername').value = a.username; document.getElementById('newUsername').disabled = true;
+  document.getElementById('newPassword').value=''; document.getElementById('newPassword').placeholder='Leave blank to keep current password';
+  document.getElementById('newDisplayName').value = a.displayName;
+  document.getElementById('athleteMsg').textContent='';
+  document.getElementById('athleteModalSubmitBtn').textContent='Save';
+  renderNewAthleteProgramChecks(a.programs.map(p=>p.id));
+  openModal('athleteModal');
+}
+document.getElementById('athleteModalSubmitBtn').addEventListener('click', async()=>{
   const msg = document.getElementById('athleteMsg');
-  const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value;
   const displayName = document.getElementById('newDisplayName').value.trim();
   const programIds = [...document.querySelectorAll('#newAthletePrograms input:checked')].map(c=>Number(c.value));
-  if(!username||!password||!displayName){ msg.className='msg err'; msg.textContent='Username, password and display name are required.'; return; }
   try{
-    await api('/admin/athletes', {method:'POST', body: JSON.stringify({username,password,displayName,programIds})});
-    closeModal('createAthleteModal');
+    if(editingAthleteId==null){
+      const username = document.getElementById('newUsername').value.trim();
+      if(!username||!password||!displayName){ msg.className='msg err'; msg.textContent='Username, password and display name are required.'; return; }
+      await api('/admin/athletes', {method:'POST', body: JSON.stringify({username,password,displayName,programIds})});
+    }else{
+      if(!displayName){ msg.className='msg err'; msg.textContent='Display name is required.'; return; }
+      await api(`/admin/athletes/${editingAthleteId}`, {method:'PUT', body: JSON.stringify({displayName})});
+      await api(`/admin/athletes/${editingAthleteId}/programs`, {method:'PUT', body: JSON.stringify({programIds})});
+      if(password) await api(`/admin/athletes/${editingAthleteId}/password`, {method:'PUT', body: JSON.stringify({password})});
+    }
+    closeModal('athleteModal');
     await loadAthletes();
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 });
@@ -296,12 +297,25 @@ async function loadPrograms(){
   list.innerHTML = programs.map(p=>`
     <div class="row">
       <div class="name">${escapeHtml(p.name)}</div>
-      <div class="row-actions"><button class="link" data-pid="${p.id}">edit phases &amp; linked activities</button></div>
+      <div class="row-actions">
+        <button class="link" data-pid="${p.id}">manage program</button>
+        <button class="link danger" data-delprog="${p.id}">delete</button>
+      </div>
     </div>
     <div class="program-editor" id="editor-${p.id}"></div>
   `).join('') || '<div class="empty-note">No programs yet.</div>';
   list.querySelectorAll('[data-pid]').forEach(btn=> btn.addEventListener('click', ()=> toggleProgramEditor(btn.dataset.pid)));
+  list.querySelectorAll('[data-delprog]').forEach(btn=> btn.addEventListener('click', ()=> deleteProgram(Number(btn.dataset.delprog))));
   renderNewAthleteProgramChecks();
+}
+async function deleteProgram(programId){
+  const p = programs.find(x=>x.id===programId);
+  if(!confirm(`Delete program "${p?p.name:programId}"? This removes all its phases, activity links, and logged training data. This cannot be undone.`)) return;
+  try{
+    await api(`/admin/programs/${programId}`, {method:'DELETE'});
+    await loadPrograms();
+    await loadAthletes();
+  }catch(e){ alert(e.message); }
 }
 function renderNewProgramActivityChecks(){
   const wrap = document.getElementById('newProgramActs');
@@ -339,12 +353,10 @@ async function renderProgramEditor(programId, editor){
   const linkedIds = new Set(p.activityTypes.map(a=>a.id));
   editor.innerHTML = `
     <h4>Phases</h4>
-    <div id="phases-${programId}"></div>
-    <div class="phase-row">
-      <div class="field"><label>Name</label><input id="pName-${programId}" placeholder="Prep"></div>
-      <div class="field"><label>Start date</label><input id="pStart-${programId}" type="date"></div>
-      <div class="field"><label>End date</label><input id="pEnd-${programId}" type="date"></div>
-      <button class="btn small" id="addPhaseBtn-${programId}">+ Add</button>
+    <div class="phase-grid" id="phases-${programId}"></div>
+    <div class="phase-actions">
+      <button class="btn small mint" id="savePhasesBtn-${programId}">Save phases</button>
+      <button class="btn small" id="addPhaseBtn-${programId}">+ Add phase</button>
     </div>
     <h4 style="margin-top:22px">Linked activity types</h4>
     <div class="checks" id="linkedActs-${programId}">${activityTypes.map(a=>`
@@ -354,33 +366,45 @@ async function renderProgramEditor(programId, editor){
     <div class="msg" id="editorMsg-${programId}"></div>
   `;
   renderPhasesList(programId, p.phases);
+  document.getElementById(`savePhasesBtn-${programId}`).addEventListener('click', ()=> savePhases(programId));
   document.getElementById(`addPhaseBtn-${programId}`).addEventListener('click', ()=> addPhase(programId));
   document.getElementById(`saveActsBtn-${programId}`).addEventListener('click', ()=> saveLinkedActivityTypes(programId));
 }
 function renderPhasesList(programId, phases){
   const wrap = document.getElementById(`phases-${programId}`);
-  wrap.innerHTML = phases.map(ph=>`
+  const existingRows = phases.map(ph=>`
     <div class="phase-row" data-phase-id="${ph.id}">
       <div class="field"><input value="${escapeHtml(ph.name)}" data-f="name"></div>
       <div class="field"><input type="date" value="${ph.startDate}" data-f="startDate"></div>
       <div class="field"><input type="date" value="${ph.endDate}" data-f="endDate"></div>
-      <div style="display:flex; gap:6px">
-        <button class="btn small save-phase">save</button>
-        <button class="btn small del-phase">delete</button>
-      </div>
-    </div>`).join('') || '<div class="empty-note">No phases yet.</div>';
-  wrap.querySelectorAll('.save-phase').forEach(btn=> btn.addEventListener('click', e=>{
-    const row = e.target.closest('[data-phase-id]');
-    updatePhase(programId, row.dataset.phaseId, {
-      name: row.querySelector('[data-f="name"]').value,
-      startDate: row.querySelector('[data-f="startDate"]').value,
-      endDate: row.querySelector('[data-f="endDate"]').value,
-    });
-  }));
+      <button class="btn small del-phase">delete</button>
+    </div>`).join('');
+  const newRow = `
+    <div class="phase-row new-phase-row">
+      <div class="field"><input id="pName-${programId}" placeholder="Prep"></div>
+      <div class="field"><input id="pStart-${programId}" type="date"></div>
+      <div class="field"><input id="pEnd-${programId}" type="date"></div>
+      <div></div>
+    </div>`;
+  wrap.innerHTML = existingRows + newRow;
   wrap.querySelectorAll('.del-phase').forEach(btn=> btn.addEventListener('click', e=>{
     const row = e.target.closest('[data-phase-id]');
     if(confirm('Delete this phase?')) deletePhase(programId, row.dataset.phaseId);
   }));
+}
+async function savePhases(programId){
+  const msg = document.getElementById(`editorMsg-${programId}`);
+  const rows = [...document.querySelectorAll(`#phases-${programId} [data-phase-id]`)];
+  try{
+    for(const row of rows){
+      await api(`/admin/programs/${programId}/phases/${row.dataset.phaseId}`, {method:'PUT', body: JSON.stringify({
+        name: row.querySelector('[data-f="name"]').value,
+        startDate: row.querySelector('[data-f="startDate"]').value,
+        endDate: row.querySelector('[data-f="endDate"]').value,
+      })});
+    }
+    msg.className='msg ok'; msg.textContent='Phases saved.';
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
 async function addPhase(programId){
   const name = document.getElementById(`pName-${programId}`).value.trim();
@@ -393,13 +417,6 @@ async function addPhase(programId){
     msg.className='msg ok'; msg.textContent='Phase added.';
     const p = await api(`/admin/programs/${programId}`);
     renderPhasesList(programId, p.phases);
-  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
-}
-async function updatePhase(programId, phaseId, body){
-  const msg = document.getElementById(`editorMsg-${programId}`);
-  try{
-    await api(`/admin/programs/${programId}/phases/${phaseId}`, {method:'PUT', body: JSON.stringify(body)});
-    msg.className='msg ok'; msg.textContent='Phase updated.';
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
 async function deletePhase(programId, phaseId){

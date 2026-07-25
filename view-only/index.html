@@ -245,19 +245,12 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 .rp-pill{font-family:"Space Grotesk"; font-size:11px; padding:5px 13px; border-radius:20px; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid); cursor:pointer; transition:.15s ease}
 .rp-pill:hover{border-color:var(--accent); color:var(--accent)}
 .rp-pill.active{background:var(--accentdark); border-color:var(--accentdark); color:#fff}
-.rp-bars{display:flex; align-items:flex-end; gap:10px; height:200px; padding:10px 4px 0; overflow-x:auto}
-.rp-bar{position:relative; display:flex; flex-direction:column; align-items:center; min-width:30px; flex:0 0 auto; height:100%; justify-content:flex-end}
-.rp-bar-stack{position:relative; width:24px; height:100%; display:flex; align-items:flex-end; justify-content:center}
-.rp-bar-a1{position:absolute; bottom:0; left:0; width:24px; background:var(--track); border:0.5px solid var(--cardborder); border-radius:3px 3px 0 0; box-sizing:border-box}
-.rp-bar-a2{position:absolute; bottom:0; width:12px; background:var(--accent); border-radius:2px 2px 0 0; opacity:.92}
-.rp-bar-label{font-size:8px; color:var(--muted); margin-top:6px; writing-mode:vertical-rl; text-orientation:mixed; white-space:nowrap}
-.rp-bar-tooltip{display:none; position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); width:200px; background:#fff; border:0.5px solid var(--cardborder); border-radius:6px; padding:10px 12px; font-size:11px; line-height:1.6; color:var(--mid); box-shadow:0 8px 24px rgba(12,21,18,.16); z-index:30; text-align:left; white-space:normal}
-.rp-bar:hover .rp-bar-tooltip{display:block}
-.rp-legend{display:flex; gap:16px; margin-top:10px; font-size:10px; color:var(--muted)}
+.rp-legend{display:flex; gap:16px; margin-bottom:8px; font-size:10.5px; color:var(--muted)}
 .rp-legend-item{display:flex; align-items:center; gap:6px}
-.rp-legend-swatch{display:inline-block; width:10px; height:10px; border-radius:2px}
-.rp-legend-swatch.a1{background:var(--track); border:0.5px solid var(--cardborder)}
-.rp-legend-swatch.a2{background:var(--accent)}
+.rp-chart-scroll{position:relative; overflow-x:auto; padding-bottom:2px}
+.rp-hit{cursor:pointer}
+.rp-tooltip{display:none; position:absolute; background:#fff; border:0.5px solid var(--cardborder); border-radius:6px; padding:9px 11px; font-size:11px; line-height:1.6; color:var(--mid); box-shadow:0 8px 24px rgba(12,21,18,.16); z-index:30; pointer-events:none; white-space:normal; max-width:200px}
+.rp-tooltip.show{display:block}
 
 /* ---------- SIMULATIONS ---------- */
 .sim-empty{max-width:440px; text-align:center; padding:40px}
@@ -303,23 +296,11 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
   .board{flex-wrap:wrap}
 }
 
-.mobile-logo-bar{display:none}
 @media (max-width:700px){
   .plan-title,.plan-target{max-width:none}
-  /* The brandrow logo moves into its own scrolling bar (below); title/target now own the full row. */
-  .brandrow{position:relative; gap:6px; padding-top:20px}
-  .brandrow > .logo{display:none}
-  .headmeta{border-left:none; padding-left:0; margin-left:0; gap:1px}
-  .plan-title{font-size:14px}
-  .plan-target{font-size:10.5px}
+  .brandrow{position:relative; padding-top:20px}
+  .headmeta{display:none}
   .controls{position:absolute; top:16px; right:28px}
-  .saved{background:var(--s1); padding:3px 8px; border-radius:20px; box-shadow:var(--shadow)}
-
-  /* Logo bar: lives inside each scrolling panel (not the fixed topbar), so it scrolls
-     away with content instead of staying pinned. */
-  .mobile-logo-bar{display:flex; justify-content:center; padding:4px 0 18px}
-  .mobile-logo-bar .mark{font-family:"Syne"; font-weight:800; font-size:20px; letter-spacing:-1px; color:var(--ink)}
-  #panel-sim.active{flex-direction:column}
 
   /* Week headers become a horizontally-scrolling chip menu; the board below shows
      one week at a time and only ever scrolls vertically — two single-axis scroll
@@ -358,12 +339,11 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
   </nav>
 </header>
 
-<section class="panel active" id="panel-log"><div class="mobile-logo-bar"><span class="mark">aitit</span></div><div class="week-picker" id="weekPicker"></div><div class="board" id="board"></div></section>
+<section class="panel active" id="panel-log"><div class="week-picker" id="weekPicker"></div><div class="board" id="board"></div></section>
 
-<section class="panel" id="panel-analytics"><div class="mobile-logo-bar"><span class="mark">aitit</span></div><div id="analytics"></div></section>
+<section class="panel" id="panel-analytics"><div id="analytics"></div></section>
 
 <section class="panel" id="panel-sim">
-  <div class="mobile-logo-bar"><span class="mark">aitit</span></div>
   <div class="sim-empty">
     <span class="tag">Coming soon</span>
     <h3>Race simulations</h3>
@@ -721,19 +701,30 @@ function renderAnalytics(){
       </div>
       <div id="runProgressChart"></div>
     </div>` : ''}`;
-  loadLeaderboard();
+  renderLeaderboardSection();
   if(hasRunProgress){ wireRunProgressControls(); renderRunProgressChart(); }
 }
 
 /* ---------------- PROGRAM LEADERBOARD ---------------- */
+// Fetched once per page load (see init()) and cached — Analytics tab switches re-render from
+// this cache and only recompute the Individual Analytics section fresh, no re-fetch.
+let leaderboardData = null;
 async function loadLeaderboard(){
-  const section=document.getElementById('leaderboardSection');
-  if(!section) return;
   try{
     const res=await publicFetch('/leaderboard');
     if(!res.ok) throw new Error('leaderboard fetch failed');
-    const data=await res.json();
-    section.innerHTML=renderLeaderboardHtml(data.athletes||[]);
+    leaderboardData = await res.json();
+  }catch(e){
+    leaderboardData = null;
+  }
+  renderLeaderboardSection();
+}
+function renderLeaderboardSection(){
+  const section=document.getElementById('leaderboardSection');
+  if(!section) return;
+  try{
+    if(!leaderboardData) throw new Error('no data');
+    section.innerHTML=renderLeaderboardHtml(leaderboardData.athletes||[]);
   }catch(e){
     section.innerHTML='<div class="lb-empty">Could not load the leaderboard.</div>';
   }
@@ -790,12 +781,12 @@ function renderLeaderboardHtml(athletesStats){
 
 /* ---------------- ZONE 2 RUN PROGRESS ---------------- */
 const RUN_PROGRESS_METRICS = {
-  time:      {label:'Time',        field:'time',      parse:parseHM, invert:false},
-  km:        {label:'Km',          field:'km',        parse:v=>parseFloat(v), invert:false},
-  avgPace:   {label:'Avg Pace',    field:'avgPace',   parse:parseMS, invert:true},
-  avgHr:     {label:'Avg HR',      field:'avgHr',     parse:v=>parseFloat(v), invert:true},
-  fastestKm: {label:'Fastest Km',  field:'fastestKm', parse:parseMS, invert:true},
-  maxHr:     {label:'Max HR',      field:'maxHr',     parse:v=>parseFloat(v), invert:true},
+  time:      {label:'Duration',    field:'time',      parse:parseHM, unit:'min'},
+  km:        {label:'Km',          field:'km',        parse:v=>parseFloat(v), unit:'km'},
+  avgPace:   {label:'Avg Pace',    field:'avgPace',   parse:parseMS, unit:'min/km'},
+  avgHr:     {label:'Avg HR',      field:'avgHr',     parse:v=>parseFloat(v), unit:'bpm'},
+  fastestKm: {label:'Fastest Km',  field:'fastestKm', parse:parseMS, unit:'min/km'},
+  maxHr:     {label:'Max HR',      field:'maxHr',     parse:v=>parseFloat(v), unit:'bpm'},
 };
 let runProgressAxis1='km', runProgressAxis2='avgHr';
 function parseHM(v){ // "1:55" -> 115 (H:MM), "0:46:54" -> 46.9 (H:MM:SS)
@@ -834,11 +825,33 @@ function getRunProgressActivities(){
   activities.sort((a,b)=>{ const da=a.values.date||'', db=b.values.date||''; return da<db?-1:da>db?1:0; });
   return activities;
 }
-function normalizePct(v,min,max,invert){
-  if(isNaN(v)) return 0;
-  if(max===min) return 100;
-  const pct=(v-min)/(max-min)*100;
-  return invert?100-pct:pct;
+function paddedScale(values){
+  if(!values.length) return {min:0,max:1};
+  const min=Math.min(...values), max=Math.max(...values);
+  const range=max-min;
+  const pad = range>0 ? range*0.1 : Math.max(Math.abs(max),1)*0.1;
+  return {min:min-pad, max:max+pad};
+}
+function niceStep(range,count){
+  if(range<=0) return 1;
+  const rawStep=range/count;
+  const mag=Math.pow(10,Math.floor(Math.log10(rawStep)));
+  const norm=rawStep/mag;
+  if(norm<1.5) return 1*mag;
+  if(norm<3) return 2*mag;
+  if(norm<7) return 5*mag;
+  return 10*mag;
+}
+function computeTicks(scale,count){
+  const step=niceStep(scale.max-scale.min,count);
+  const start=Math.ceil(scale.min/step)*step;
+  const ticks=[];
+  for(let v=start; v<=scale.max+1e-9; v+=step) ticks.push(Math.round(v*1000)/1000);
+  return ticks;
+}
+function fmtTick(v,unit){
+  const rounded = Math.abs(v)>=100 ? Math.round(v) : Math.round(v*10)/10;
+  return `${rounded} ${unit}`;
 }
 function renderRunProgressChart(){
   const container=document.getElementById('runProgressChart');
@@ -848,27 +861,86 @@ function renderRunProgressChart(){
   const m1=RUN_PROGRESS_METRICS[runProgressAxis1], m2=RUN_PROGRESS_METRICS[runProgressAxis2];
   const v1=activities.map(a=>m1.parse(a.values[m1.field]));
   const v2=activities.map(a=>m2.parse(a.values[m2.field]));
-  const valid1=v1.filter(v=>!isNaN(v)), valid2=v2.filter(v=>!isNaN(v));
-  const min1=valid1.length?Math.min(...valid1):0, max1=valid1.length?Math.max(...valid1):0;
-  const min2=valid2.length?Math.min(...valid2):0, max2=valid2.length?Math.max(...valid2):0;
-  const bars=activities.map((a,i)=>{
-    const p1=Math.max(normalizePct(v1[i],min1,max1,m1.invert),2);
-    const p2=Math.max(normalizePct(v2[i],min2,max2,m2.invert),2);
-    const dt=a.values.date?fmtDate(a.values.date):'—';
-    return `<div class="rp-bar">
-      <div class="rp-bar-tooltip">${buildActivityTooltip(a)}</div>
-      <div class="rp-bar-stack">
-        <div class="rp-bar-a1" style="height:${p1}%"></div>
-        <div class="rp-bar-a2" style="height:${p2}%"></div>
-      </div>
-      <div class="rp-bar-label">${dt}</div>
-    </div>`;
+  const scale1=paddedScale(v1.filter(v=>!isNaN(v)));
+  const scale2=paddedScale(v2.filter(v=>!isNaN(v)));
+  const ticks1=computeTicks(scale1,5), ticks2=computeTicks(scale2,5);
+
+  const N=activities.length;
+  const leftM=48, rightM=52, topM=14, bottomM=32;
+  const slotW=Math.max(34, Math.min(56, 640/N));
+  const chartW=Math.max(320, N*slotW);
+  const chartH=200;
+  const totalW=leftM+chartW+rightM, totalH=topM+chartH+bottomM;
+  const barW=Math.min(22, slotW*0.55);
+  const yFor=(v,scale)=> topM + chartH*(1-(v-scale.min)/(scale.max-scale.min));
+
+  const gridLines=ticks1.map(t=>{
+    const y=yFor(t,scale1);
+    return `<line x1="${leftM}" y1="${y}" x2="${leftM+chartW}" y2="${y}" stroke="var(--cardborder)" stroke-dasharray="3,4" stroke-width="1"/>
+      <text x="${leftM-8}" y="${y+3.5}" text-anchor="end" font-size="10" font-family="Space Grotesk" fill="var(--muted)">${fmtTick(t,m1.unit)}</text>`;
   }).join('');
-  container.innerHTML=`<div class="rp-bars">${bars}</div>
+  const rightLabels=ticks2.map(t=>{
+    const y=yFor(t,scale2);
+    return `<text x="${leftM+chartW+8}" y="${y+3.5}" text-anchor="start" font-size="10" font-family="Space Grotesk" fill="var(--accentdark)">${fmtTick(t,m2.unit)}</text>`;
+  }).join('');
+
+  const bars=activities.map((a,i)=>{
+    const cx=leftM+slotW*i+slotW/2;
+    const val=v1[i];
+    if(isNaN(val)) return '';
+    const y=yFor(val,scale1), y0=yFor(scale1.min,scale1);
+    const top=Math.min(y,y0), h=Math.max(Math.abs(y0-y),1);
+    return `<rect x="${cx-barW/2}" y="${top}" width="${barW}" height="${h}" rx="3" fill="var(--mint)" stroke="var(--accent)" stroke-width="0.75"/>`;
+  }).join('');
+
+  const linePoints=activities.map((a,i)=>{
+    const cx=leftM+slotW*i+slotW/2, val=v2[i];
+    return isNaN(val)?null:{x:cx,y:yFor(val,scale2)};
+  });
+  const linePath=linePoints.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p.x+','+p.y).join(' ');
+  const dots=linePoints.filter(Boolean).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="var(--accentdark)"/>`).join('');
+
+  const dateLabels=activities.map((a,i)=>{
+    const cx=leftM+slotW*i+slotW/2, dt=a.values.date?fmtDate(a.values.date):'—';
+    return `<text x="${cx}" y="${topM+chartH+18}" text-anchor="middle" font-size="9" font-family="Space Grotesk" fill="var(--muted)">${dt}</text>`;
+  }).join('');
+
+  const hitTargets=activities.map((a,i)=>{
+    const cx=leftM+slotW*i+slotW/2;
+    return `<rect x="${cx-slotW/2}" y="${topM}" width="${slotW}" height="${chartH}" fill="transparent" class="rp-hit" data-idx="${i}"/>`;
+  }).join('');
+
+  container.innerHTML=`
     <div class="rp-legend">
-      <span class="rp-legend-item"><i class="rp-legend-swatch a1"></i>${escapeHtml(m1.label)} (height)</span>
-      <span class="rp-legend-item"><i class="rp-legend-swatch a2"></i>${escapeHtml(m2.label)} (fill)</span>
+      <span class="rp-legend-item"><svg width="14" height="10" viewBox="0 0 14 10"><rect x="1" y="2" width="12" height="6" rx="1" fill="var(--mint)" stroke="var(--accent)" stroke-width="0.75"/></svg>${escapeHtml(m1.label)} — bars, left axis</span>
+      <span class="rp-legend-item"><svg width="14" height="10" viewBox="0 0 14 10"><line x1="1" y1="5" x2="13" y2="5" stroke="var(--accentdark)" stroke-width="2"/><circle cx="7" cy="5" r="2.5" fill="var(--accentdark)"/></svg>${escapeHtml(m2.label)} — line, right axis</span>
+    </div>
+    <div class="rp-chart-scroll">
+      <svg width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
+        ${gridLines}
+        ${rightLabels}
+        ${bars}
+        <path d="${linePath}" fill="none" stroke="var(--accentdark)" stroke-width="2"/>
+        ${dots}
+        ${dateLabels}
+        ${hitTargets}
+      </svg>
+      <div class="rp-tooltip" id="rpTooltip"></div>
     </div>`;
+  wireRpHitTargets(activities);
+}
+function wireRpHitTargets(activities){
+  const tooltip=document.getElementById('rpTooltip');
+  document.querySelectorAll('.rp-hit').forEach(rect=>{
+    const a=activities[Number(rect.dataset.idx)];
+    rect.addEventListener('mouseenter',()=>{ tooltip.innerHTML=buildActivityTooltip(a); tooltip.classList.add('show'); });
+    rect.addEventListener('mousemove',e=>{
+      const wrap=rect.closest('.rp-chart-scroll').getBoundingClientRect();
+      tooltip.style.left=(e.clientX-wrap.left+12)+'px';
+      tooltip.style.top=(e.clientY-wrap.top-10)+'px';
+    });
+    rect.addEventListener('mouseleave',()=> tooltip.classList.remove('show'));
+  });
 }
 function buildActivityTooltip(a){
   const lines=[`<b>${a.values.date?fmtDate(a.values.date):'—'}</b>`];
@@ -905,6 +977,7 @@ async function init(){
   const stateRes = await publicFetch('/state');
   const data = await stateRes.json();
   state = data ? migrate(data) : newState('Training plan');
+  loadLeaderboard(); // prefetch so opening the Analytics tab is instant; not re-fetched on tab switch
   titleInput.value=state.title; targetInput.value=state.target;
   buildBoard();
 }
