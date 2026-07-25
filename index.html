@@ -440,7 +440,16 @@ let activeProgramId = null;
 
 function loadSession(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)); }catch(e){ return null; } }
 function saveSession(s){ session=s; try{ localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }catch(e){} }
-function clearSession(){ session=null; try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
+function clearSession(){
+  session=null;
+  try{
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(ACTIVE_PROGRAM_KEY);
+    // Defense in depth: even with storeKey() now scoped per-athlete, purge any cached state so a
+    // fresh login never has stale local data to paint before the server fetch resolves.
+    Object.keys(localStorage).filter(k=>k.startsWith('aitit_state_v3_')).forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+}
 
 async function apiFetch(path, opts){
   opts = opts || {};
@@ -548,7 +557,10 @@ function weekStatus(w){
 
 /* ---------------- STATE (per athlete + program) ---------------- */
 let memoryOnly = false;
-function storeKey(){ return 'aitit_state_v3_'+activeProgramId; }
+// Must include athleteId — multiple athletes commonly share the same program, and without the
+// athlete id here they'd all read/write the exact same localStorage slot (the actual cause of the
+// "switching accounts shows the previous athlete's data" bug).
+function storeKey(){ return 'aitit_state_v3_'+(session&&session.athleteId)+'_'+activeProgramId; }
 
 function newState(defaultTitle){
   const weeks = {};
