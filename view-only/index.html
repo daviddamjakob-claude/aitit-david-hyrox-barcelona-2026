@@ -235,19 +235,21 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 @media (max-width:820px){.lb-viz-row{grid-template-columns:1fr}}
 .lb-empty{font-size:11px; color:var(--muted2); font-style:italic; padding:8px 0}
 .lb-hover{position:relative}
-.lb-tooltip{display:none; position:absolute; top:calc(100% + 6px); left:0; right:0; min-width:180px; background:#fff; border:0.5px solid var(--cardborder); border-radius:6px; padding:9px 11px; font-size:10.5px; line-height:1.6; color:var(--mid); box-shadow:0 8px 24px rgba(12,21,18,.16); z-index:30; text-align:left; white-space:normal}
+.lb-tooltip{display:none; position:absolute; top:calc(100% + 6px); left:0; right:0; min-width:180px; max-height:320px; overflow-y:auto; background:#fff; border:0.5px solid var(--cardborder); border-radius:6px; padding:11px 13px; font-size:10.5px; line-height:1.6; color:var(--mid); box-shadow:0 8px 24px rgba(12,21,18,.16); z-index:30; text-align:left; white-space:normal}
 .lb-hover:hover .lb-tooltip{display:block}
+.tt-bar-row{margin-bottom:8px}
+.tt-bar-row:last-child{margin-bottom:0}
+.tt-bar-top{display:flex; justify-content:space-between; font-size:10px; margin-bottom:3px}
+.tt-group{margin-bottom:12px; padding-bottom:11px; border-bottom:0.5px solid var(--cardborder)}
+.tt-group:last-child{margin-bottom:0; padding-bottom:0; border-bottom:none}
+.tt-group-label{font-family:"Syne"; font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink); margin-bottom:7px}
 
-.rp-controls{display:flex; flex-direction:column; gap:8px; margin:10px 0 16px}
-.rp-axis-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-.rp-axis-label{font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); min-width:52px}
-.rp-pills{display:flex; gap:6px; flex-wrap:wrap}
-.rp-pill{font-family:"Space Grotesk"; font-size:11px; padding:5px 13px; border-radius:20px; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid); cursor:pointer; transition:.15s ease}
-.rp-pill:hover{border-color:var(--accent); color:var(--accent)}
-.rp-pill.active{background:var(--accentdark); border-color:var(--accentdark); color:#fff}
+.rp-controls{display:flex; gap:20px; flex-wrap:wrap; margin:10px 0 16px}
+.rp-controls label{font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); display:flex; flex-direction:column; gap:5px}
+.rp-controls select{font-family:"Space Grotesk"; font-size:12px; color:var(--ink); background:#fff; border:0.5px solid var(--cardborder); border-radius:5px; padding:6px 9px; text-transform:none; letter-spacing:0}
 .rp-legend{display:flex; gap:16px; margin-bottom:8px; font-size:10.5px; color:var(--muted)}
 .rp-legend-item{display:flex; align-items:center; gap:6px}
-.rp-chart-scroll{position:relative; overflow-x:auto; padding-bottom:2px}
+.rp-chart-scroll{position:relative; padding-bottom:2px}
 .rp-hit{cursor:pointer}
 .rp-tooltip{display:none; position:absolute; background:#fff; border:0.5px solid var(--cardborder); border-radius:6px; padding:9px 11px; font-size:11px; line-height:1.6; color:var(--mid); box-shadow:0 8px 24px rgba(12,21,18,.16); z-index:30; pointer-events:none; white-space:normal; max-width:200px}
 .rp-tooltip.show{display:block}
@@ -688,7 +690,7 @@ function renderAnalytics(){
 
     <div class="an-head" style="margin-top:36px"><span class="phase-rule"></span><span class="an-title">Individual Analytics</span></div>
     <div class="an-grid">
-      <div class="an-card"><h4>Sessions by discipline <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:10px">(up to this week)</span></h4>${actBars}
+      <div class="an-card"><h4>Sessions by Activity Type <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:10px">(up to this week)</span></h4>${actBars}
         <div style="font-size:9px;letter-spacing:.1em;color:var(--muted);margin-top:14px;text-transform:uppercase">■ done &nbsp; ▪ planned</div></div>
       <div class="an-card"><h4>Weekly completion</h4><div class="wk-list">${wkRows}</div></div>
     </div>
@@ -696,8 +698,8 @@ function renderAnalytics(){
     <div class="an-card" style="margin-top:20px">
       <h4>Zone 2 Run Progress</h4>
       <div class="rp-controls">
-        <div class="rp-axis-row"><span class="rp-axis-label">Axis 1</span><div class="rp-pills" id="rpAxis1Pills"></div></div>
-        <div class="rp-axis-row"><span class="rp-axis-label">Axis 2</span><div class="rp-pills" id="rpAxis2Pills"></div></div>
+        <label>Axis 1 (bar height)<select id="rpAxis1"></select></label>
+        <label>Axis 2 (line)<select id="rpAxis2"></select></label>
       </div>
       <div id="runProgressChart"></div>
     </div>` : ''}`;
@@ -742,14 +744,35 @@ function actLabel(key){
   const found=ACTIVITIES.find(a=>a.key===key);
   return found?found.label:key;
 }
-function buildDisciplineTooltip(byDiscipline,mode){
-  const entries=Object.entries(byDiscipline||{}).filter(([,v])=>v.done>0||v.target>0);
-  if(!entries.length) return 'No sessions logged.';
-  return entries.map(([key,v])=>{
-    if(mode==='sessions') return `${escapeHtml(actLabel(key))}: ${v.done}`;
-    const pct=v.target>0?Math.round(v.done/v.target*100):0;
-    return `${escapeHtml(actLabel(key))}: ${v.done}/${v.target} (${pct}%)`;
-  }).join('<br>');
+// One mini bar-row per activity type — always lists every type the program has linked, even ones
+// with zero sessions/target in the timeframe, reusing the exact .abar bar style used everywhere else.
+function buildActivityBarsHtml(byDiscipline,mode){
+  const rows=ACTIVITIES.map(act=>{
+    const d=(byDiscipline&&byDiscipline[act.key])||{done:0,target:0};
+    return {label:act.label,done:d.done,target:d.target};
+  });
+  const maxDone=Math.max(1,...rows.map(r=>r.done));
+  return rows.map(r=>{
+    if(mode==='sessions'){
+      const pct=Math.round(r.done/maxDone*100);
+      return `<div class="tt-bar-row"><div class="tt-bar-top"><span>${escapeHtml(r.label)}</span><span>${r.done}</span></div><div class="abar"><i style="width:${pct}%"></i></div></div>`;
+    }
+    const pct=r.target>0?Math.min(100,Math.round(r.done/r.target*100)):0;
+    return `<div class="tt-bar-row"><div class="tt-bar-top"><span>${escapeHtml(r.label)}</span><span>${r.done}/${r.target} (${pct}%)</span></div><div class="abar"><i style="width:${pct}%"></i></div></div>`;
+  }).join('');
+}
+// Wraps buildActivityBarsHtml per sub-period (week or wave) for the Current Wave / Program tiers —
+// groups is already oldest-first, so rendering in order puts older weeks/waves on top as requested.
+function buildGroupedTooltip(groups,mode){
+  if(!groups||!groups.length) return 'No sessions logged.';
+  return `<div class="tt-groups">${groups.map(g=>`
+    <div class="tt-group"><div class="tt-group-label">${escapeHtml(g.label)}</div>${buildActivityBarsHtml(g.byDiscipline,mode)}</div>
+  `).join('')}</div>`;
+}
+function activityTooltip(tierKey,a,mode){
+  if(tierKey==='currentWave'&&a.currentWave.byWeek) return buildGroupedTooltip(a.currentWave.byWeek,mode);
+  if(tierKey==='program'&&a.program.byWave) return buildGroupedTooltip(a.program.byWave,mode);
+  return buildActivityBarsHtml(a[tierKey].byDiscipline,mode);
 }
 function buildZone2Tooltip(zone2Activities){
   if(!zone2Activities||!zone2Activities.length) return 'No Zone 2 activities logged.';
@@ -758,8 +781,8 @@ function buildZone2Tooltip(zone2Activities){
 function renderTierViz(tierKey,athletesStats){
   const maxSessions=Math.max(1,...athletesStats.map(a=>a[tierKey].sessions));
   const maxTime=Math.max(1,...athletesStats.map(a=>a[tierKey].zone2Minutes));
-  const sessionsCard=athletesStats.map(a=>lbBarRow(a.displayName,a[tierKey].sessions,maxSessions,`${a[tierKey].sessions}`,buildDisciplineTooltip(a[tierKey].byDiscipline,'sessions'))).join('');
-  const completionCard=athletesStats.map(a=>lbBarRow(a.displayName,a[tierKey].completionPct,100,`${a[tierKey].completionPct}%`,buildDisciplineTooltip(a[tierKey].byDiscipline,'completion'))).join('');
+  const sessionsCard=athletesStats.map(a=>lbBarRow(a.displayName,a[tierKey].sessions,maxSessions,`${a[tierKey].sessions}`,activityTooltip(tierKey,a,'sessions'))).join('');
+  const completionCard=athletesStats.map(a=>lbBarRow(a.displayName,a[tierKey].completionPct,100,`${a[tierKey].completionPct}%`,activityTooltip(tierKey,a,'completion'))).join('');
   const timeCard=athletesStats.map(a=>lbBarRow(a.displayName,a[tierKey].zone2Minutes,maxTime,fmtMinutes(a[tierKey].zone2Minutes),buildZone2Tooltip(a[tierKey].zone2Activities))).join('');
   return `<div class="lb-viz-row">
     <div class="an-card"><h4>Sessions</h4>${sessionsCard}</div>
@@ -774,7 +797,7 @@ function renderLeaderboardHtml(athletesStats){
     ${renderTierViz('currentWeek',athletesStats)}
     <div class="an-section-title">Current Wave</div>
     ${renderTierViz('currentWave',athletesStats)}
-    <div class="an-section-title">Program</div>
+    <div class="an-section-title">Full Training Program</div>
     ${renderTierViz('program',athletesStats)}
   `;
 }
@@ -804,18 +827,13 @@ function parseMS(v){ // "5:14" -> 5.23 (M:SS pace)
   return parts[0]+parts[1]/60;
 }
 function wireRunProgressControls(){
-  renderAxisPills('rpAxis1Pills', runProgressAxis1, k=>{ runProgressAxis1=k; wireRunProgressControls(); renderRunProgressChart(); });
-  renderAxisPills('rpAxis2Pills', runProgressAxis2, k=>{ runProgressAxis2=k; wireRunProgressControls(); renderRunProgressChart(); });
-}
-function renderAxisPills(containerId, selectedKey, onSelect){
-  const el=document.getElementById(containerId);
-  if(!el) return;
-  el.innerHTML=Object.entries(RUN_PROGRESS_METRICS).map(([k,m])=>
-    `<button type="button" class="rp-pill${k===selectedKey?' active':''}" data-key="${k}">${m.label}</button>`
-  ).join('');
-  el.querySelectorAll('.rp-pill').forEach(btn=>{
-    btn.addEventListener('click',()=>onSelect(btn.dataset.key));
+  const a1=document.getElementById('rpAxis1'), a2=document.getElementById('rpAxis2');
+  [a1,a2].forEach(sel=>{
+    sel.innerHTML=Object.entries(RUN_PROGRESS_METRICS).map(([k,m])=>`<option value="${k}">${m.label}</option>`).join('');
   });
+  a1.value=runProgressAxis1; a2.value=runProgressAxis2;
+  a1.addEventListener('change',()=>{ runProgressAxis1=a1.value; renderRunProgressChart(); });
+  a2.addEventListener('change',()=>{ runProgressAxis2=a2.value; renderRunProgressChart(); });
 }
 function getRunProgressActivities(){
   const activities=[];
@@ -825,12 +843,11 @@ function getRunProgressActivities(){
   activities.sort((a,b)=>{ const da=a.values.date||'', db=b.values.date||''; return da<db?-1:da>db?1:0; });
   return activities;
 }
-function paddedScale(values){
-  if(!values.length) return {min:0,max:1};
-  const min=Math.min(...values), max=Math.max(...values);
-  const range=max-min;
-  const pad = range>0 ? range*0.1 : Math.max(Math.abs(max),1)*0.1;
-  return {min:min-pad, max:max+pad};
+function getFixedScale(metricKey, values){
+  if(metricKey==='avgPace'||metricKey==='fastestKm') return {min:7, max:3};
+  if(metricKey==='avgHr'||metricKey==='maxHr') return {min:120, max:210};
+  const max=Math.max(1, ...values, 0);
+  return {min:0, max:max*1.1};
 }
 function niceStep(range,count){
   if(range<=0) return 1;
@@ -843,10 +860,11 @@ function niceStep(range,count){
   return 10*mag;
 }
 function computeTicks(scale,count){
-  const step=niceStep(scale.max-scale.min,count);
-  const start=Math.ceil(scale.min/step)*step;
+  const lo=Math.min(scale.min,scale.max), hi=Math.max(scale.min,scale.max);
+  const step=niceStep(hi-lo,count);
+  const start=Math.ceil(lo/step)*step;
   const ticks=[];
-  for(let v=start; v<=scale.max+1e-9; v+=step) ticks.push(Math.round(v*1000)/1000);
+  for(let v=start; v<=hi+1e-9; v+=step) ticks.push(Math.round(v*1000)/1000);
   return ticks;
 }
 function fmtTick(v,unit){
@@ -861,17 +879,18 @@ function renderRunProgressChart(){
   const m1=RUN_PROGRESS_METRICS[runProgressAxis1], m2=RUN_PROGRESS_METRICS[runProgressAxis2];
   const v1=activities.map(a=>m1.parse(a.values[m1.field]));
   const v2=activities.map(a=>m2.parse(a.values[m2.field]));
-  const scale1=paddedScale(v1.filter(v=>!isNaN(v)));
-  const scale2=paddedScale(v2.filter(v=>!isNaN(v)));
+  const scale1=getFixedScale(runProgressAxis1, v1.filter(v=>!isNaN(v)));
+  const scale2=getFixedScale(runProgressAxis2, v2.filter(v=>!isNaN(v)));
   const ticks1=computeTicks(scale1,5), ticks2=computeTicks(scale2,5);
 
   const N=activities.length;
   const leftM=48, rightM=52, topM=14, bottomM=32;
-  const slotW=Math.max(34, Math.min(56, 640/N));
-  const chartW=Math.max(320, N*slotW);
+  const availW=Math.max(280, container.clientWidth||600);
+  const chartW=Math.max(160, availW-leftM-rightM);
+  const slotW=chartW/N;
   const chartH=200;
   const totalW=leftM+chartW+rightM, totalH=topM+chartH+bottomM;
-  const barW=Math.min(22, slotW*0.55);
+  const barW=Math.min(60, slotW*0.5);
   const yFor=(v,scale)=> topM + chartH*(1-(v-scale.min)/(scale.max-scale.min));
 
   const gridLines=ticks1.map(t=>{
@@ -942,6 +961,13 @@ function wireRpHitTargets(activities){
     rect.addEventListener('mouseleave',()=> tooltip.classList.remove('show'));
   });
 }
+let rpResizeTimer;
+window.addEventListener('resize',()=>{
+  clearTimeout(rpResizeTimer);
+  rpResizeTimer=setTimeout(()=>{
+    if(document.getElementById('runProgressChart') && document.getElementById('panel-analytics').classList.contains('active')) renderRunProgressChart();
+  },150);
+});
 function buildActivityTooltip(a){
   const lines=[`<b>${a.values.date?fmtDate(a.values.date):'—'}</b>`];
   (CARD_METRICS[a.type]||[]).forEach(k=>{
