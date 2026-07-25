@@ -28,7 +28,16 @@ body{
   -webkit-font-smoothing:antialiased;
   display:flex; flex-direction:column; height:100vh; overflow:hidden;
 }
+body.pre-login .topbar, body.pre-login .panel{display:none}
 ::selection{background:var(--accent); color:#fff}
+
+/* ---------- LOGIN ---------- */
+.login-screen{display:none; position:fixed; inset:0; background:var(--bg); align-items:center; justify-content:center; z-index:100}
+.login-screen.show{display:flex}
+.login-card{width:100%; max-width:340px; padding:32px; background:#fff; border:0.5px solid var(--cardborder); border-radius:10px; box-shadow:0 12px 40px rgba(12,21,18,.12)}
+.login-card .logo{margin-bottom:22px}
+.login-card h3{font-family:"Syne"; font-weight:800; font-size:20px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin-bottom:18px}
+.login-error{font-size:11px; color:#c0392b; margin-bottom:10px; min-height:14px}
 
 /* ---------- HEADER ---------- */
 .topbar{flex:0 0 auto; background:var(--bg); border-bottom:0.5px solid var(--border)}
@@ -64,6 +73,23 @@ body{
 .btn.mint:hover{background:var(--accentdark); border-color:var(--accentdark)}
 .saved{font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--accent); opacity:0; transition:opacity .3s}
 .saved.show{opacity:1}
+
+/* ---------- USER MENU ---------- */
+.user-menu-wrap{position:relative}
+.user-icon-btn{width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; border:none; cursor:pointer; font-family:"Syne"; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; transition:.15s}
+.user-icon-btn:hover{background:var(--accentdark)}
+.user-menu{display:none; position:absolute; top:calc(100% + 10px); right:0; width:240px; background:#fff; border:0.5px solid var(--cardborder); border-radius:8px; box-shadow:0 12px 40px rgba(12,21,18,.16); padding:14px; z-index:41}
+.user-menu.show{display:block}
+.user-menu-section{margin-bottom:14px}
+.user-menu-section:last-child{margin-bottom:0}
+.user-menu-heading{font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px}
+.user-menu-name{font-family:"Syne"; font-weight:700; font-size:14px; color:var(--ink); margin-bottom:8px}
+.user-menu-action{display:block; width:100%; text-align:left; background:none; border:none; padding:6px 0; font-family:"Space Grotesk"; font-size:12px; color:var(--accent); cursor:pointer}
+.user-menu-action:hover{text-decoration:underline}
+.program-item{display:block; padding:6px 0; font-size:12px; color:var(--mid); cursor:pointer; border-radius:4px}
+.program-item:hover{color:var(--accent)}
+.program-item.active{color:var(--accent); font-weight:700}
+.user-menu-hint{font-size:10.5px; color:var(--muted2); font-style:italic; line-height:1.5; margin-top:8px}
 
 /* ---------- TABS ---------- */
 .tabs{display:flex; gap:2px; padding:0 28px}
@@ -277,19 +303,45 @@ body{
 }
 </style>
 </head>
-<body>
+<body class="pre-login">
+
+<!-- login screen -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="logo"><span class="mark">aitit</span><span class="name">all it takes is training</span></div>
+    <h3>Log in</h3>
+    <div class="field"><label>Username</label><input id="loginUsername" type="text" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn mint" id="loginSubmit" style="width:100%">Log in</button>
+  </div>
+</div>
 
 <header class="topbar">
   <div class="brandrow">
     <div class="logo"><span class="mark">aitit</span><span class="name">all it takes is training</span></div>
     <div class="headmeta">
-      <input class="plan-title" id="planTitle" value="David's training for Hyrox Barcelona — Nov 13">
-      <input class="plan-target" id="planTarget" value="Target: sub 60min">
+      <input class="plan-title" id="planTitle" value="">
+      <input class="plan-target" id="planTarget" value="">
     </div>
     <div class="controls">
       <span class="saved" id="savedFlag">saved</span>
       <button class="btn" id="printBtn">print</button>
       <button class="btn mint" id="downloadBtn">download</button>
+      <div class="user-menu-wrap">
+        <button class="user-icon-btn" id="userMenuBtn" aria-label="Account menu">?</button>
+        <div class="user-menu" id="userMenu">
+          <div class="user-menu-section">
+            <div class="user-menu-heading">Athlete</div>
+            <div id="userMenuAthlete"></div>
+          </div>
+          <div class="user-menu-section">
+            <div class="user-menu-heading">Training Programs</div>
+            <div id="userMenuPrograms"></div>
+            <div class="user-menu-hint">Reach out to David to unlock a new training program</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <nav class="tabs">
@@ -307,7 +359,7 @@ body{
   <div class="sim-empty">
     <span class="tag">Coming soon</span>
     <h3>Race simulations</h3>
-    <p>Model the Hyrox Barcelona race from David's logged splits and the proprietary race analytics — projected finish against the sub-60min target, station-by-station pacing, and “what-if” scenarios. Once we agree what the simulation should output, this tab is where it lives.</p>
+    <p>Model the race from your logged splits and the proprietary race analytics — projected finish against your target, station-by-station pacing, and “what-if” scenarios. Once we agree what the simulation should output, this tab is where it lives.</p>
   </div>
 </section>
 
@@ -349,23 +401,43 @@ body{
 <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none">
 
 <script>
-/* ---------------- CONFIG ---------------- */
-const ACTIVITIES = [
-  {key:'zone2',            label:'Zone 2 Cardio'},
-  {key:'runIntervals',     label:'Run Intervals'},
-  {key:'exerciseIntervals',label:'Hybrid Intervals'},
-  {key:'strength',         label:'Strength'},
-  {key:'mobility',         label:'Mobility & Recovery'},
-];
-const ACT_MAP = Object.fromEntries(ACTIVITIES.map(a=>[a.key,a.label]));
+/* ---------------- API / AUTH ---------------- */
+const API_BASE = 'https://aitit-training-os.david-damjakob.workers.dev';
+const SESSION_KEY = 'aitit_session_v1';
+const ACTIVE_PROGRAM_KEY = 'aitit_active_program_v1';
+
+let session = null;       // {token, athleteId, displayName}
+let programsList = [];    // [{id,name}]
+let activeProgramId = null;
+
+function loadSession(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)); }catch(e){ return null; } }
+function saveSession(s){ session=s; try{ localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }catch(e){} }
+function clearSession(){ session=null; try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
+
+async function apiFetch(path, opts){
+  opts = opts || {};
+  const headers = Object.assign({}, opts.headers||{});
+  if(session) headers['X-Session-Token']=session.token;
+  return fetch(API_BASE+path, Object.assign({}, opts, {headers}));
+}
+async function doLogin(username,password){
+  const res = await fetch(API_BASE+'/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || 'Login failed');
+  saveSession({token:data.token, athleteId:data.athleteId, displayName:data.displayName});
+  return data;
+}
+async function fetchMe(){
+  const res = await apiFetch('/me');
+  if(!res.ok) throw new Error('unauthorized');
+  return res.json();
+}
+
+/* ---------------- CONFIG (populated per program after login) ---------------- */
+let ACTIVITIES = [];      // [{key,label}]
+let ACT_MAP = {};         // key -> label
+let ACT_INFO = {};        // key -> explainer text
 const ACT_SHORT = {zone2:'Zone 2', runIntervals:'Run int.', exerciseIntervals:'Hybrid int.', strength:'Strength', mobility:'Mobility'};
-const ACT_INFO = {
-  zone2:'Longer, aerobic effort — which means that you avoid the high intensity zones. Steered by HR, keep the average at 65–75% of your true max (approx. 220 - age). This should be a pace at which you could still have a conversation. Ideally aim for 60+min, especially for your main Zone 2 session in a week. Possible to alternate runs with cycling or even row/ski erg.',
-  runIntervals:'Intense efforts separated by short breaks. Common intervals are 400m (10-20x), 1km or 1.2km (4-8x), 2km (3-5x). Breaks are 1-2min at moderate walking pace. Total work session length varies between 30-60min, ideally with an additional warm-up and cool-down at relaxed pace (~1km each).',
-  exerciseIntervals:'Intense efforts separated by short breaks. Typically with a mix of row erg, ski erg and running sets, commonly mixed with burpee jumps, lunges and wall balls. Shorten the breaks over time — races are won on tired legs and in the transitions between runs and exercises. Total work session length varies between 45-60min.',
-  strength:'Preference-led. Can but doesn\'t need to have a Hyrox focus (lower-body and leg strength, grip strength, sled push & pull work).',
-  mobility:'Preference-led. Effective options include but are not limited to yoga, stretching, mobility, massage or sauna.',
-};
 
 /* ---------------- PHOTOS (Cloudinary, same account as training-dashboard-v2) ---------------- */
 const CLOUDINARY_CLOUD = 'dglx8phdf';
@@ -406,61 +478,57 @@ const CARD_METRICS = {
 };
 const METRIC_LABEL = {time:'Time', km:'km', avgPace:'Avg pace', fastestKm:'Fastest km', avgHr:'Avg HR', maxHr:'Max HR', totalTime:'Total time', avgIntPace:'Avg int. pace', fastestIntPace:'Fastest int.', rowPace:'Row', skiPace:'Ski', runPace:'Run'};
 const REVIEW_LABEL = {great:'great session', good:'good session', meh:'not so happy'};
-const SURF = ['s1','s2','s3'];
 
-const PHASES = [
-  {name:'Prep', meta:'Jul 13 – Aug 2 · 3 weeks', weeks:[['Jul 13','Jul 19'],['Jul 20','Jul 26'],['Jul 27','Aug 2']]},
-  {name:'Training Wave 1', meta:'Aug 3 – Aug 30 · 4 weeks', weeks:[['Aug 3','Aug 9'],['Aug 10','Aug 16'],['Aug 17','Aug 23'],['Aug 24','Aug 30']]},
-  {name:'Training Wave 2', meta:'Aug 31 – Sep 27 · 4 weeks', weeks:[['Aug 31','Sep 6'],['Sep 7','Sep 13'],['Sep 14','Sep 20'],['Sep 21','Sep 27']]},
-  {name:'Training Wave 3', meta:'Sep 28 – Nov 1 · 5 weeks', weeks:[['Sep 28','Oct 4'],['Oct 5','Oct 11'],['Oct 12','Oct 18'],['Oct 19','Oct 25'],['Oct 26','Nov 1']]},
-  {name:'Tapering', meta:'Nov 2 – Nov 12 · 1.5 weeks', weeks:[['Nov 2','Nov 8'],['Nov 9','Nov 12']]},
-];
-const WEEKS = [];
-let wn = 0;
-PHASES.forEach(p=>{ p._weekIds=[]; p.weeks.forEach((range,i)=>{ wn++; const id='w'+wn; const partial=(p.name==='Tapering'&&i===p.weeks.length-1); WEEKS.push({id,num:wn,range,phase:p.name,partial}); p._weekIds.push(id); }); });
+/* ---------------- PHASES / WEEKS (derived per-program from admin-set phase dates) ---------------- */
+let PHASES = [];
+let WEEKS = [];
+let mobileSelectedWeek = null;
 
-const MONTHS={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-const PLAN_YEAR=2026; // plan runs Jul–Nov 2026
-function parseWeekDate(label){ const p=label.split(' '); return new Date(PLAN_YEAR, MONTHS[p[0]], parseInt(p[1],10)); }
+function fmtMonthDay(d){ return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function isoDate(d){ return d.toISOString().slice(0,10); }
+function deriveWeeks(phasesCfg){
+  PHASES = []; WEEKS = [];
+  let wn = 0;
+  phasesCfg.forEach(p=>{
+    const start = new Date(p.startDate+'T00:00:00');
+    const end = new Date(p.endDate+'T00:00:00');
+    const weekIds = []; let cursor = new Date(start); let lastPartial = false;
+    while(cursor <= end){
+      wn++;
+      const wStart = new Date(cursor);
+      let wEnd = new Date(cursor); wEnd.setDate(wEnd.getDate()+6);
+      let partial = false;
+      if(wEnd > end){ wEnd = new Date(end); partial = true; }
+      const id = 'w'+wn;
+      WEEKS.push({id, num:wn, range:[fmtMonthDay(wStart), fmtMonthDay(wEnd)], startISO:isoDate(wStart), endISO:isoDate(wEnd), phase:p.name, partial});
+      weekIds.push(id); lastPartial = partial;
+      cursor.setDate(cursor.getDate()+7);
+    }
+    const weekCount = weekIds.length;
+    const weekLabel = lastPartial ? (weekCount-1)+'.5' : String(weekCount);
+    PHASES.push({name:p.name, meta:`${fmtMonthDay(start)} – ${fmtMonthDay(end)} · ${weekLabel} week${(weekCount===1&&!lastPartial)?'':'s'}`, _weekIds:weekIds});
+  });
+  mobileSelectedWeek = (WEEKS.find(w=>weekStatus(w)==='current')||WEEKS[0]||{}).id || null;
+}
 function weekStatus(w){
   const now=new Date(); const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  const start=parseWeekDate(w.range[0]), end=parseWeekDate(w.range[1]);
+  const start=new Date(w.startISO+'T00:00:00'), end=new Date(w.endISO+'T00:00:00');
   if(today>end) return 'past';
   if(today<start) return 'future';
   return 'current';
 }
-let mobileSelectedWeek=(WEEKS.find(w=>weekStatus(w)==='current')||WEEKS[0]).id;
 
-/* ---------------- STATE ---------------- */
-const STORE_KEY = 'aitit_training_plan_v2';
+/* ---------------- STATE (per athlete + program) ---------------- */
 let memoryOnly = false;
+function storeKey(){ return 'aitit_state_v3_'+activeProgramId; }
 
-/* ---------------- CLOUD SYNC ---------------- */
-const SYNC_URL = 'https://aitit-sync.david-damjakob.workers.dev/sync';
-const SYNC_SECRET = 'cbf9882171cc81bad26c40cf971139b54d1c1fd976d7211e';
-
-function newState(){
+function newState(defaultTitle){
   const weeks = {};
   WEEKS.forEach(w=>{ const t={}; ACTIVITIES.forEach(a=> t[a.key]={planned:0,comment:''}); weeks[w.id]={targets:t,review:'',workouts:[]}; });
-  return {title:"David's training for Hyrox Barcelona — Nov 13", target:"Target: sub 60min", weeks};
-}
-// David's data as entered in the PDF (Week 1)
-function seedState(){
-  const s = newState();
-  const w1 = s.weeks.w1;
-  w1.targets.zone2 = {planned:1, comment:'min. 1 session, 15km (potentially even 20km)'};
-  w1.targets.strength = {planned:4, comment:''};
-  w1.workouts = [
-    {id:'seed_1', type:'strength', values:{date:'2026-07-13'}, review:'good', details:'shoulders, triceps, biceps'},
-    {id:'seed_2', type:'strength', values:{date:'2026-07-14'}, review:'good', details:'chest, abs'},
-    {id:'seed_3', type:'strength', values:{date:'2026-07-16'}, review:'good', details:'chest + abs'},
-    {id:'seed_4', type:'strength', values:{date:'2026-07-17'}, review:'good',
-      details:'shoulders, abs, tricpes\n1: 4+ sets of barbell shoulder press (guided barbell, 15/20/25/30/35kg)\n2: 4 x 15 sets of ab bench\n3: some bicep and tricep work'},
-  ];
-  return s;
+  return {title:defaultTitle||'Training plan', target:'', weeks};
 }
 function migrate(s){
-  const base = newState();
+  const base = newState(s.title);
   base.title = s.title || base.title;
   base.target = s.target || base.target;
   WEEKS.forEach(w=>{
@@ -473,13 +541,13 @@ function migrate(s){
   });
   return base;
 }
-function load(){ try{ const raw=localStorage.getItem(STORE_KEY); return raw? migrate(JSON.parse(raw)) : null; }catch(e){ return null; } }
-let state = load() || seedState();
+function loadLocal(){ try{ const raw=localStorage.getItem(storeKey()); return raw? migrate(JSON.parse(raw)) : null; }catch(e){ return null; } }
+let state = null;
 
 let saveTimer;
 function save(){
   if(!memoryOnly){
-    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    try{ localStorage.setItem(storeKey(), JSON.stringify(state)); }
     catch(e){ memoryOnly=true; }
   }
   flagSaved(memoryOnly ? 'memory only' : 'saved');
@@ -491,24 +559,22 @@ let pushTimer;
 function pushRemote(){
   clearTimeout(pushTimer);
   pushTimer=setTimeout(()=>{
-    fetch(SYNC_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Sync-Secret':SYNC_SECRET},body:JSON.stringify(state)})
+    apiFetch(`/program/${activeProgramId}/state`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)})
       .then(res=>{ flagSaved(res.ok?'synced':'sync error'); })
       .catch(()=> flagSaved('offline'));
   },800);
 }
 async function pullRemote(){
   try{
-    const res=await fetch(SYNC_URL,{headers:{'X-Sync-Secret':SYNC_SECRET}});
-    if(!res.ok) throw new Error('sync GET failed: '+res.status);
+    const res=await apiFetch(`/program/${activeProgramId}/state`);
+    if(!res.ok) throw new Error('state GET failed: '+res.status);
     const data=await res.json();
-    if(data){
-      state=migrate(data);
-      try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
-      titleInput.value=state.title; targetInput.value=state.target;
-      buildBoard();
-      if(document.getElementById('panel-analytics').classList.contains('active')) renderAnalytics();
-      flagSaved('synced');
-    }
+    if(data) state=migrate(data);
+    try{ localStorage.setItem(storeKey(), JSON.stringify(state)); }catch(e){}
+    titleInput.value=state.title; targetInput.value=state.target;
+    buildBoard();
+    if(document.getElementById('panel-analytics').classList.contains('active')) renderAnalytics();
+    flagSaved('synced');
   }catch(e){ flagSaved('offline'); }
 }
 
@@ -519,7 +585,7 @@ function buildBoard(){
   PHASES.forEach((p,pi)=>{
     const phase=el('div','phase');
     const head=el('div','phase-head');
-    head.innerHTML=`<span class="phase-rule"></span><span class="phase-name">${p.name}</span><span class="phase-meta">${p.meta}</span>`;
+    head.innerHTML=`<span class="phase-rule"></span><span class="phase-name">${escapeHtml(p.name)}</span><span class="phase-meta">${p.meta}</span>`;
     phase.appendChild(head);
     const cols=el('div','phase-cols');
     p._weekIds.forEach((wid,i)=> cols.appendChild(buildColumn(WEEKS.find(w=>w.id===wid), pi+i)));
@@ -558,7 +624,7 @@ function buildColumn(w, idx){
   const status=weekStatus(w);
   const col=el('div','col'); col.dataset.week=w.id;
   const head=el('div','col-head');
-  head.innerHTML=`<span class="wk">Week ${w.num}${status==='current'?' <span class="nowtag">now</span>':''}</span><span class="dates${w.partial?' partial':''}">${w.range[0]} – ${w.range[1]}${w.partial?' · 4d':''}</span>`;
+  head.innerHTML=`<span class="wk">Week ${w.num}${status==='current'?' <span class="nowtag">now</span>':''}</span><span class="dates${w.partial?' partial':''}">${w.range[0]} – ${w.range[1]}${w.partial?' · partial':''}</span>`;
   col.appendChild(head);
 
   const tCard=el('div','card '+status);
@@ -568,7 +634,7 @@ function buildColumn(w, idx){
     const row=el('div','trow');
     row.innerHTML=`
       <div class="trow-top">
-        <span class="act-name">${a.label}<span class="info-tip" tabindex="0">ⓘ<span class="info-pop">${escapeHtml(ACT_INFO[a.key])}</span></span></span>
+        <span class="act-name">${escapeHtml(a.label)}<span class="info-tip" tabindex="0">ⓘ<span class="info-pop">${escapeHtml(ACT_INFO[a.key]||'')}</span></span></span>
         <div class="stepper">
           <span class="done" data-done="${a.key}">0/${t.planned}</span>
           <button data-step="dec" data-act="${a.key}">–</button>
@@ -576,7 +642,7 @@ function buildColumn(w, idx){
           <button data-step="inc" data-act="${a.key}">+</button>
         </div>
       </div>
-      <textarea class="plan-input" data-plan="${a.key}" placeholder="plan for ${a.label.toLowerCase()}…">${escapeHtml(t.comment)}</textarea>`;
+      <textarea class="plan-input" data-plan="${a.key}" placeholder="plan for ${escapeHtml(a.label.toLowerCase())}…">${escapeHtml(t.comment)}</textarea>`;
     tCard.appendChild(row);
   });
 
@@ -623,7 +689,7 @@ function updateSummary(wid){
   col.querySelector('[data-pct]').textContent=target>0?`${pctv}% of target`:'no target set';
   col.querySelector('[data-breakdown]').innerHTML=ACTIVITIES.map(a=>{
     const c=counts[a.key],p=wk.targets[a.key].planned,hit=p>0&&c>=p;
-    return `<div class="brow${hit?' hit':''}"><span>${ACT_SHORT[a.key]}</span><span>${c}/${p}</span></div>`;
+    return `<div class="brow${hit?' hit':''}"><span>${escapeHtml(ACT_SHORT[a.key]||a.label)}</span><span>${c}/${p}</span></div>`;
   }).join('');
   ACTIVITIES.forEach(a=>{ const d=col.querySelector(`[data-done="${a.key}"]`); if(d)d.textContent=`${counts[a.key]}/${wk.targets[a.key].planned}`; });
 }
@@ -643,7 +709,7 @@ function workoutCard(wid,x){
   const rv=x.review?`<span class="wreview ${x.review}">${REVIEW_LABEL[x.review]}</span>`:'';
   const dt=x.values.date?fmtDate(x.values.date):'—';
   const dets=x.details?`<div class="wdetails">${escapeHtml(x.details)}</div>`:'';
-  c.innerHTML=`<div class="wcard-top"><span class="wtag">${ACT_MAP[x.type]}</span><span class="wdate">${dt}</span></div>
+  c.innerHTML=`<div class="wcard-top"><span class="wtag">${escapeHtml(ACT_MAP[x.type]||x.type)}</span><span class="wdate">${dt}</span></div>
     ${mk?`<div class="wmetrics">${mk}</div>`:''}${rv}${dets}
     <div class="wphotos" data-photos-strip></div>
     <div class="wactions"><button data-photos>add photos</button><button data-edit>edit</button><button class="del" data-del>delete</button></div>`;
@@ -735,14 +801,17 @@ document.addEventListener('keydown',e=>{
 const overlay=document.getElementById('overlay'), mType=document.getElementById('mType'),
       mFields=document.getElementById('mFields'), mDetails=document.getElementById('mDetails'), mReview=document.getElementById('mReview');
 let editing={wid:null,id:null,review:''};
-ACTIVITIES.forEach(a=>{ const o=document.createElement('option'); o.value=a.key; o.textContent=a.label; mType.appendChild(o); });
+function populateActivitySelect(){
+  mType.innerHTML='';
+  ACTIVITIES.forEach(a=>{ const o=document.createElement('option'); o.value=a.key; o.textContent=a.label; mType.appendChild(o); });
+}
 function openModal(wid,id){
   editing={wid,id,review:''};
   const ex=id?state.weeks[wid].workouts.find(w=>w.id===id):null;
   const wm=WEEKS.find(w=>w.id===wid);
   document.getElementById('modalTitle').textContent=ex?'edit workout':'add workout';
   document.getElementById('modalSub').textContent=`Week ${wm.num} · ${wm.range[0]} – ${wm.range[1]}`;
-  mType.value=ex?ex.type:'zone2';
+  mType.value=ex?ex.type:(ACTIVITIES[0]&&ACTIVITIES[0].key);
   renderModalFields(ex); mDetails.value=ex?(ex.details||''):''; editing.review=ex?(ex.review||''):''; paintReview();
   overlay.classList.add('show');
 }
@@ -787,13 +856,13 @@ function renderAnalytics(){
   const maxAct=Math.max(1,...ACTIVITIES.map(a=>Math.max(s.byAct[a.key].done,s.byAct[a.key].plan)));
   const actBars=ACTIVITIES.map(a=>{
     const o=s.byAct[a.key];
-    return `<div class="abar-row"><div class="abar-top"><span class="l">${a.label}</span><span class="r">${o.done} done · ${o.plan} planned</span></div>
+    return `<div class="abar-row"><div class="abar-top"><span class="l">${escapeHtml(a.label)}</span><span class="r">${o.done} done · ${o.plan} planned</span></div>
       <div class="abar"><i style="width:${Math.round(o.done/maxAct*100)}%"></i></div>
       <div class="abar soft" style="margin-top:3px"><i style="width:${Math.round(o.plan/maxAct*100)}%"></i></div></div>`;
   }).join('');
   const wkRows=s.perWeek.map(w=>{
     const p=w.target>0?Math.round(w.done/w.target*100):0;
-    return `<div class="wk-item"><div class="wl">Week ${w.num}<small>${w.phase}</small></div>
+    return `<div class="wk-item"><div class="wl">Week ${w.num}<small>${escapeHtml(w.phase)}</small></div>
       <div class="abar"><i style="width:${Math.min(p,100)}%"></i></div>
       <div class="wr">${w.done}/${w.target}</div></div>`;
   }).join('');
@@ -829,7 +898,6 @@ document.querySelectorAll('.tab').forEach(tab=> tab.addEventListener('click',()=
 
 /* ---------------- CONTROLS ---------------- */
 const titleInput=document.getElementById('planTitle'), targetInput=document.getElementById('planTarget');
-titleInput.value=state.title; targetInput.value=state.target;
 titleInput.addEventListener('input',()=>{ state.title=titleInput.value; save(); });
 targetInput.addEventListener('input',()=>{ state.target=targetInput.value; save(); });
 
@@ -841,14 +909,123 @@ document.getElementById('downloadBtn').addEventListener('click',()=>{
 });
 document.getElementById('printBtn').addEventListener('click',()=>window.print());
 
+/* ---------------- USER MENU ---------------- */
+const userMenuBtn=document.getElementById('userMenuBtn'), userMenu=document.getElementById('userMenu');
+userMenuBtn.addEventListener('click',e=>{ e.stopPropagation(); userMenu.classList.toggle('show'); });
+document.addEventListener('click',e=>{ if(!userMenu.contains(e.target)&&e.target!==userMenuBtn) userMenu.classList.remove('show'); });
+
+function renderAccountMenu(displayName, programs){
+  userMenuBtn.textContent=(displayName||'?').charAt(0).toUpperCase();
+  document.getElementById('userMenuAthlete').innerHTML=`
+    <div class="user-menu-name">${escapeHtml(displayName)}</div>
+    <button class="user-menu-action" id="switchAccountsBtn">Switch Accounts</button>`;
+  document.getElementById('switchAccountsBtn').addEventListener('click', async()=>{
+    await apiFetch('/auth/logout',{method:'POST'}).catch(()=>{});
+    clearSession();
+    location.reload();
+  });
+  renderProgramsMenu(programs);
+}
+function renderProgramsMenu(programs){
+  const wrap=document.getElementById('userMenuPrograms');
+  wrap.innerHTML = programs.length
+    ? programs.map(p=>`<div class="program-item${String(p.id)===String(activeProgramId)?' active':''}" data-pid="${p.id}">${escapeHtml(p.name)}</div>`).join('')
+    : '';
+  wrap.querySelectorAll('.program-item').forEach(item=>{
+    item.addEventListener('click', async()=>{
+      if(item.dataset.pid===String(activeProgramId)) return;
+      userMenu.classList.remove('show');
+      await loadProgram(item.dataset.pid);
+    });
+  });
+}
+function renderLoggedOutMenu(){
+  userMenuBtn.textContent='?';
+  document.getElementById('userMenuAthlete').innerHTML=`<button class="user-menu-action" id="loginMenuBtn">Log in</button>`;
+  document.getElementById('loginMenuBtn').addEventListener('click', showLogin);
+  document.getElementById('userMenuPrograms').innerHTML='';
+}
+
+/* ---------------- LOGIN / INIT FLOW ---------------- */
+function showLogin(){
+  document.body.classList.add('pre-login');
+  document.getElementById('loginScreen').classList.add('show');
+  renderLoggedOutMenu();
+}
+function hideLogin(){
+  document.body.classList.remove('pre-login');
+  document.getElementById('loginScreen').classList.remove('show');
+}
+function showNoProgramsState(){
+  document.querySelector('.tabs').style.display='none';
+  const logPanel=document.getElementById('panel-log');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  logPanel.classList.add('active');
+  logPanel.innerHTML='<div class="sim-empty"><h3>No training program yet</h3><p>Reach out to David to get a training program assigned to your account.</p></div>';
+}
+
+async function loadProgram(programId){
+  activeProgramId = String(programId);
+  try{ localStorage.setItem(ACTIVE_PROGRAM_KEY, activeProgramId); }catch(e){}
+  const cfgRes = await apiFetch(`/program/${activeProgramId}/config`);
+  const cfg = await cfgRes.json();
+  ACTIVITIES = cfg.activityTypes.map(a=>({key:a.key,label:a.label}));
+  ACT_MAP = Object.fromEntries(ACTIVITIES.map(a=>[a.key,a.label]));
+  ACT_INFO = Object.fromEntries(cfg.activityTypes.map(a=>[a.key,a.infoText]));
+  populateActivitySelect();
+  deriveWeeks(cfg.phases);
+  const programName = (programsList.find(p=>String(p.id)===activeProgramId)||{}).name || 'Training plan';
+  state = loadLocal() || newState(programName);
+  titleInput.value=state.title; targetInput.value=state.target;
+  buildBoard();
+  renderProgramsMenu(programsList);
+  await pullRemote();
+}
+
+async function afterLogin(){
+  try{
+    const me = await fetchMe();
+    hideLogin();
+    programsList = me.programs || [];
+    renderAccountMenu(me.displayName, programsList);
+    if(!programsList.length){ showNoProgramsState(); return; }
+    let stored = null;
+    try{ stored = localStorage.getItem(ACTIVE_PROGRAM_KEY); }catch(e){}
+    if(!stored || !programsList.some(p=>String(p.id)===String(stored))) stored = String(programsList[0].id);
+    await loadProgram(stored);
+  }catch(e){
+    clearSession();
+    showLogin();
+  }
+}
+async function init(){
+  session = loadSession();
+  if(!session){ showLogin(); return; }
+  await afterLogin();
+}
+
+async function doLoginSubmit(){
+  const u=document.getElementById('loginUsername').value.trim();
+  const p=document.getElementById('loginPassword').value;
+  const errEl=document.getElementById('loginError');
+  errEl.textContent='';
+  if(!u||!p){ errEl.textContent='Enter username and password.'; return; }
+  try{
+    await doLogin(u,p);
+    await afterLogin();
+  }catch(e){ errEl.textContent = e.message || 'Login failed'; }
+}
+document.getElementById('loginSubmit').addEventListener('click', doLoginSubmit);
+document.getElementById('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') doLoginSubmit(); });
+document.getElementById('loginUsername').addEventListener('keydown', e=>{ if(e.key==='Enter') doLoginSubmit(); });
+
 /* ---------------- HELPERS ---------------- */
 function el(tag,cls){ const e=document.createElement(tag); if(cls)e.className=cls; return e; }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); if(isNaN(d))return iso; return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }
 
 /* ---------------- INIT ---------------- */
-buildBoard();
-pullRemote();
+init();
 window.matchMedia('(max-width:700px)').addEventListener('change',applyMobileFilter);
 let resizeTimer;
 window.addEventListener('resize',()=>{ clearTimeout(resizeTimer); resizeTimer=setTimeout(applyMobileFilter,150); });

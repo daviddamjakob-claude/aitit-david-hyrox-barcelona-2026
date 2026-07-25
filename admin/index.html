@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Center — Training OS by aitit</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F0F5F2; --s3:#EBF2EE; --cardborder:#CFDED7;
+  --muted:#5E8677; --muted2:#93AEA2; --mid:#37624F;
+  --accent:#1D6E50; --accentdark:#175A41; --ink:#0C1512;
+  --btntext:#FFFFFF; --shadow:0 1px 2px rgba(20,40,32,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg); color:var(--mid); font-family:"Space Grotesk",system-ui,sans-serif; padding:32px; max-width:960px; margin:0 auto}
+h1{font-family:"Syne"; font-weight:800; font-size:24px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin-bottom:4px}
+.sub{font-size:12px; color:var(--muted); letter-spacing:0.04em; margin-bottom:28px}
+h2{font-family:"Syne"; font-weight:700; font-size:16px; text-transform:uppercase; letter-spacing:0.02em; color:var(--ink); margin:32px 0 14px}
+.card{background:#fff; border:0.5px solid var(--cardborder); border-radius:8px; padding:18px 20px; box-shadow:var(--shadow); margin-bottom:14px}
+.row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:0.5px solid var(--cardborder); font-size:13px}
+.row:last-child{border-bottom:none}
+.row .name{font-weight:600; color:var(--ink)}
+.row .meta{font-size:11px; color:var(--muted)}
+.field{margin-bottom:12px}
+.field label{display:block; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:5px}
+.field input,.field textarea{width:100%; background:var(--bg); border:0.5px solid var(--cardborder); color:var(--ink); font-family:"Space Grotesk"; font-size:13px; padding:8px 10px; border-radius:5px; outline:none}
+.field textarea{resize:vertical; min-height:70px; line-height:1.5}
+.field input:focus,.field textarea:focus{border-color:var(--accent)}
+.checks{display:flex; flex-wrap:wrap; gap:10px}
+.checks label{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--mid); font-weight:400; text-transform:none; letter-spacing:0}
+.btn{font-family:"Space Grotesk"; font-weight:500; font-size:12px; padding:8px 14px; border-radius:5px; cursor:pointer; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid)}
+.btn:hover{border-color:var(--accent); color:var(--accent)}
+.btn.mint{border-color:var(--accent); background:var(--accent); color:var(--btntext)}
+.btn.mint:hover{background:var(--accentdark)}
+.btn.small{padding:4px 9px; font-size:11px}
+.msg{font-size:11px; margin-top:8px; min-height:14px}
+.msg.err{color:#c0392b}
+.msg.ok{color:var(--accent)}
+.program-editor{display:none; margin-top:10px; padding-top:14px; border-top:0.5px solid var(--cardborder)}
+.program-editor.show{display:block}
+.phase-row,.act-row{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px}
+.act-row{grid-template-columns:140px 1fr auto}
+.act-row textarea{min-height:44px}
+.link{background:none; border:none; color:var(--accent); cursor:pointer; font-size:12px; text-decoration:underline; padding:0}
+</style>
+</head>
+<body>
+<h1>Admin Center</h1>
+<div class="sub">Manage athlete accounts and training programs. This page is unlisted — protected only by not being linked anywhere.</div>
+
+<h2>Athletes</h2>
+<div class="card">
+  <div id="athleteList"></div>
+</div>
+<div class="card">
+  <div class="field"><label>Username</label><input id="newUsername"></div>
+  <div class="field"><label>Password</label><input id="newPassword" type="text"></div>
+  <div class="field"><label>Display name</label><input id="newDisplayName"></div>
+  <div class="field"><label>Linked programs</label><div class="checks" id="newAthletePrograms"></div></div>
+  <button class="btn mint" id="createAthleteBtn">+ Create athlete</button>
+  <div class="msg" id="athleteMsg"></div>
+</div>
+
+<h2>Training Programs</h2>
+<div class="card">
+  <div id="programList"></div>
+</div>
+<div class="card">
+  <div class="field"><label>Program name</label><input id="newProgramName"></div>
+  <button class="btn mint" id="createProgramBtn">+ Create program</button>
+  <div class="msg" id="programMsg"></div>
+</div>
+
+<script>
+const API_BASE = 'https://aitit-training-os.david-damjakob.workers.dev';
+
+async function api(path, opts){
+  const res = await fetch(API_BASE+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  const data = await res.json().catch(()=>null);
+  if(!res.ok) throw new Error((data&&data.error)||'Request failed');
+  return data;
+}
+function el(tag,cls){ const e=document.createElement(tag); if(cls)e.className=cls; return e; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let athletes = [];
+let programs = [];
+
+async function loadAthletes(){
+  athletes = await api('/admin/athletes');
+  const list = document.getElementById('athleteList');
+  list.innerHTML = athletes.length ? athletes.map(a=>`
+    <div class="row">
+      <div><span class="name">${escapeHtml(a.displayName)}</span> <span class="meta">@${escapeHtml(a.username)}</span></div>
+      <div class="meta">${a.programs.map(p=>escapeHtml(p.name)).join(', ') || 'no programs linked'}</div>
+    </div>`).join('') : '<div class="meta">No athletes yet.</div>';
+  renderNewAthleteProgramChecks();
+}
+function renderNewAthleteProgramChecks(){
+  const wrap = document.getElementById('newAthletePrograms');
+  wrap.innerHTML = programs.map(p=>`<label><input type="checkbox" value="${p.id}"> ${escapeHtml(p.name)}</label>`).join('') || '<span class="meta">Create a program first.</span>';
+}
+
+async function loadPrograms(){
+  programs = await api('/admin/programs');
+  const list = document.getElementById('programList');
+  list.innerHTML = programs.map(p=>`
+    <div class="row">
+      <div><span class="name">${escapeHtml(p.name)}</span></div>
+      <button class="link" data-pid="${p.id}">edit phases &amp; activity types</button>
+    </div>
+    <div class="program-editor" id="editor-${p.id}"></div>
+  `).join('') || '<div class="meta">No programs yet.</div>';
+  list.querySelectorAll('[data-pid]').forEach(btn=> btn.addEventListener('click', ()=> toggleProgramEditor(btn.dataset.pid)));
+  renderNewAthleteProgramChecks();
+}
+
+async function toggleProgramEditor(programId){
+  const editor = document.getElementById('editor-'+programId);
+  const isShown = editor.classList.contains('show');
+  document.querySelectorAll('.program-editor.show').forEach(e=>e.classList.remove('show'));
+  if(isShown) return;
+  editor.classList.add('show');
+  await renderProgramEditor(programId, editor);
+}
+
+async function renderProgramEditor(programId, editor){
+  editor.innerHTML = 'Loading…';
+  const p = await api(`/admin/programs/${programId}`);
+  editor.innerHTML = `
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin-bottom:10px">Phases</h3>
+    <div id="phases-${programId}"></div>
+    <div class="phase-row">
+      <div class="field" style="margin-bottom:0"><label>Name</label><input id="pName-${programId}" placeholder="Prep"></div>
+      <div class="field" style="margin-bottom:0"><label>Start date</label><input id="pStart-${programId}" type="date"></div>
+      <div class="field" style="margin-bottom:0"><label>End date</label><input id="pEnd-${programId}" type="date"></div>
+      <button class="btn small" id="addPhaseBtn-${programId}">+ Add</button>
+    </div>
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin:18px 0 10px">Activity types</h3>
+    <div id="acts-${programId}"></div>
+    <div class="msg" id="editorMsg-${programId}"></div>
+  `;
+  renderPhasesList(programId, p.phases);
+  renderActivityTypesList(programId, p.activityTypes);
+  document.getElementById(`addPhaseBtn-${programId}`).addEventListener('click', ()=> addPhase(programId));
+}
+
+function renderPhasesList(programId, phases){
+  const wrap = document.getElementById(`phases-${programId}`);
+  wrap.innerHTML = phases.map(ph=>`
+    <div class="phase-row" data-phase-id="${ph.id}">
+      <div class="field" style="margin-bottom:0"><input value="${escapeHtml(ph.name)}" data-f="name"></div>
+      <div class="field" style="margin-bottom:0"><input type="date" value="${ph.startDate}" data-f="startDate"></div>
+      <div class="field" style="margin-bottom:0"><input type="date" value="${ph.endDate}" data-f="endDate"></div>
+      <div style="display:flex; gap:6px">
+        <button class="btn small save-phase">save</button>
+        <button class="btn small del-phase">delete</button>
+      </div>
+    </div>`).join('') || '<div class="meta" style="font-size:11px;margin-bottom:10px">No phases yet.</div>';
+  wrap.querySelectorAll('.save-phase').forEach(btn=> btn.addEventListener('click', e=>{
+    const row = e.target.closest('[data-phase-id]');
+    updatePhase(programId, row.dataset.phaseId, {
+      name: row.querySelector('[data-f="name"]').value,
+      startDate: row.querySelector('[data-f="startDate"]').value,
+      endDate: row.querySelector('[data-f="endDate"]').value,
+    });
+  }));
+  wrap.querySelectorAll('.del-phase').forEach(btn=> btn.addEventListener('click', e=>{
+    const row = e.target.closest('[data-phase-id]');
+    if(confirm('Delete this phase?')) deletePhase(programId, row.dataset.phaseId);
+  }));
+}
+function renderActivityTypesList(programId, activityTypes){
+  const wrap = document.getElementById(`acts-${programId}`);
+  wrap.innerHTML = activityTypes.map(a=>`
+    <div class="act-row" data-key="${a.key}">
+      <div class="field" style="margin-bottom:0"><input value="${escapeHtml(a.label)}" data-f="label"></div>
+      <div class="field" style="margin-bottom:0"><textarea data-f="infoText">${escapeHtml(a.infoText)}</textarea></div>
+      <button class="btn small save-act">save</button>
+    </div>`).join('');
+  wrap.querySelectorAll('.save-act').forEach(btn=> btn.addEventListener('click', e=>{
+    const row = e.target.closest('[data-key]');
+    updateActivityType(programId, row.dataset.key, {
+      label: row.querySelector('[data-f="label"]').value,
+      infoText: row.querySelector('[data-f="infoText"]').value,
+    });
+  }));
+}
+
+async function addPhase(programId){
+  const name = document.getElementById(`pName-${programId}`).value.trim();
+  const startDate = document.getElementById(`pStart-${programId}`).value;
+  const endDate = document.getElementById(`pEnd-${programId}`).value;
+  const msg = document.getElementById(`editorMsg-${programId}`);
+  if(!name||!startDate||!endDate){ msg.className='msg err'; msg.textContent='Fill in name, start and end date.'; return; }
+  try{
+    await api(`/admin/programs/${programId}/phases`, {method:'POST', body: JSON.stringify({name,startDate,endDate})});
+    msg.className='msg ok'; msg.textContent='Phase added.';
+    const p = await api(`/admin/programs/${programId}`);
+    renderPhasesList(programId, p.phases);
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+async function updatePhase(programId, phaseId, body){
+  const msg = document.getElementById(`editorMsg-${programId}`);
+  try{
+    await api(`/admin/programs/${programId}/phases/${phaseId}`, {method:'PUT', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent='Phase updated.';
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+async function deletePhase(programId, phaseId){
+  const msg = document.getElementById(`editorMsg-${programId}`);
+  try{
+    await api(`/admin/programs/${programId}/phases/${phaseId}`, {method:'DELETE'});
+    const p = await api(`/admin/programs/${programId}`);
+    renderPhasesList(programId, p.phases);
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+async function updateActivityType(programId, key, body){
+  const msg = document.getElementById(`editorMsg-${programId}`);
+  try{
+    await api(`/admin/programs/${programId}/activity-types/${key}`, {method:'PUT', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent='Activity type updated.';
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+
+document.getElementById('createAthleteBtn').addEventListener('click', async()=>{
+  const msg = document.getElementById('athleteMsg');
+  const username = document.getElementById('newUsername').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const displayName = document.getElementById('newDisplayName').value.trim();
+  const programIds = [...document.querySelectorAll('#newAthletePrograms input:checked')].map(c=>Number(c.value));
+  if(!username||!password||!displayName){ msg.className='msg err'; msg.textContent='Username, password and display name are required.'; return; }
+  try{
+    await api('/admin/athletes', {method:'POST', body: JSON.stringify({username,password,displayName,programIds})});
+    msg.className='msg ok'; msg.textContent='Athlete created.';
+    document.getElementById('newUsername').value=''; document.getElementById('newPassword').value=''; document.getElementById('newDisplayName').value='';
+    await loadAthletes();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+});
+document.getElementById('createProgramBtn').addEventListener('click', async()=>{
+  const msg = document.getElementById('programMsg');
+  const name = document.getElementById('newProgramName').value.trim();
+  if(!name){ msg.className='msg err'; msg.textContent='Program name is required.'; return; }
+  try{
+    await api('/admin/programs', {method:'POST', body: JSON.stringify({name})});
+    msg.className='msg ok'; msg.textContent='Program created (5 default activity types seeded).';
+    document.getElementById('newProgramName').value='';
+    await loadPrograms();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+});
+
+(async function init(){
+  await loadPrograms();
+  await loadAthletes();
+})();
+</script>
+</body>
+</html>

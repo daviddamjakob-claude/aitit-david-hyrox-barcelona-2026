@@ -1,10 +1,19 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "aitit-sync",
+  "name": "aitit-training-os",
   "main": "src/worker.js",
   "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
   "kv_namespaces": [
     { "binding": "AITIT_SYNC_KV", "id": "1f4aa67b91b84f6dab366f70574abb35" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "aitit_training_os",
+      "database_id": "215ad808-625e-4f69-9ab4-b134972e72cc",
+      "migrations_dir": "migrations"
+    }
   ],
   "observability": {
     "enabled": true
