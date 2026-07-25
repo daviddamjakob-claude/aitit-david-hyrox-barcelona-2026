@@ -166,8 +166,10 @@ let programs = [];
 let activityTypes = [];
 
 /* ---------------- ATHLETES ---------------- */
-async function loadAthletes(){
-  athletes = await api('/admin/athletes');
+// Renders from the in-memory `athletes` array only — no network call. Mutations (create/edit/
+// delete) update `athletes` optimistically and call this directly, instead of round-tripping
+// through a full GET /admin/athletes reload, which was the main cause of "buttons feel slow."
+function renderAthleteList(){
   const list = document.getElementById('athleteList');
   list.innerHTML = athletes.length ? athletes.map(a=>`
     <div class="row">
@@ -184,6 +186,10 @@ async function loadAthletes(){
   list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=> deleteAthlete(Number(btn.dataset.del))));
   renderNewAthleteProgramChecks();
 }
+async function loadAthletes(){
+  athletes = await api('/admin/athletes');
+  renderAthleteList();
+}
 function renderNewAthleteProgramChecks(checkedIds){
   const checked = new Set((checkedIds||[]).map(String));
   const wrap = document.getElementById('newAthletePrograms');
@@ -196,7 +202,8 @@ async function deleteAthlete(athleteId){
   if(!confirm(`Delete athlete "${a?a.displayName:athleteId}"? This cannot be undone.`)) return;
   try{
     await api(`/admin/athletes/${athleteId}`, {method:'DELETE'});
-    await loadAthletes();
+    athletes = athletes.filter(x=>x.id!==athleteId);
+    renderAthleteList();
   }catch(e){ alert(e.message); }
 }
 document.getElementById('openCreateAthleteBtn').addEventListener('click', ()=>{
@@ -228,19 +235,29 @@ document.getElementById('athleteModalSubmitBtn').addEventListener('click', async
   const password = document.getElementById('newPassword').value;
   const displayName = document.getElementById('newDisplayName').value.trim();
   const programIds = [...document.querySelectorAll('#newAthletePrograms input:checked')].map(c=>Number(c.value));
+  const linkedPrograms = programs.filter(p=>programIds.includes(p.id)).map(p=>({id:p.id,name:p.name}));
   try{
     if(editingAthleteId==null){
       const username = document.getElementById('newUsername').value.trim();
       if(!username||!password||!displayName){ msg.className='msg err'; msg.textContent='Username, password and display name are required.'; return; }
-      await api('/admin/athletes', {method:'POST', body: JSON.stringify({username,password,displayName,programIds})});
+      const result = await api('/admin/athletes', {method:'POST', body: JSON.stringify({username,password,displayName,programIds})});
+      athletes.push({id: result.id, username, displayName, programs: linkedPrograms});
     }else{
       if(!displayName){ msg.className='msg err'; msg.textContent='Display name is required.'; return; }
-      await api(`/admin/athletes/${editingAthleteId}`, {method:'PUT', body: JSON.stringify({displayName})});
-      await api(`/admin/athletes/${editingAthleteId}/programs`, {method:'PUT', body: JSON.stringify({programIds})});
-      if(password) await api(`/admin/athletes/${editingAthleteId}/password`, {method:'PUT', body: JSON.stringify({password})});
+      // The 2-3 PUTs are independent writes (display name, program links, password) — run them
+      // concurrently instead of one-after-another; this was the main source of the multi-second
+      // delay on "manage athlete."
+      const ops = [
+        api(`/admin/athletes/${editingAthleteId}`, {method:'PUT', body: JSON.stringify({displayName})}),
+        api(`/admin/athletes/${editingAthleteId}/programs`, {method:'PUT', body: JSON.stringify({programIds})}),
+      ];
+      if(password) ops.push(api(`/admin/athletes/${editingAthleteId}/password`, {method:'PUT', body: JSON.stringify({password})}));
+      await Promise.all(ops);
+      const a = athletes.find(x=>x.id===editingAthleteId);
+      if(a){ a.displayName = displayName; a.programs = linkedPrograms; }
     }
     closeModal('athleteModal');
-    await loadAthletes();
+    renderAthleteList();
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 });
 
