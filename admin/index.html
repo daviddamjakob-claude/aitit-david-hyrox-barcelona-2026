@@ -28,6 +28,8 @@ h2{font-family:"Syne"; font-weight:700; font-size:16px; text-transform:uppercase
 .field input,.field textarea{width:100%; background:var(--bg); border:0.5px solid var(--cardborder); color:var(--ink); font-family:"Space Grotesk"; font-size:13px; padding:8px 10px; border-radius:5px; outline:none}
 .field textarea{resize:vertical; min-height:70px; line-height:1.5}
 .field input:focus,.field textarea:focus{border-color:var(--accent)}
+.field.checkbox{display:flex; align-items:center; gap:6px}
+.field.checkbox label{margin:0; font-size:12px; text-transform:none; letter-spacing:0; color:var(--mid)}
 .checks{display:flex; flex-wrap:wrap; gap:10px}
 .checks label{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--mid); font-weight:400; text-transform:none; letter-spacing:0}
 .btn{font-family:"Space Grotesk"; font-weight:500; font-size:12px; padding:8px 14px; border-radius:5px; cursor:pointer; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid)}
@@ -40,15 +42,15 @@ h2{font-family:"Syne"; font-weight:700; font-size:16px; text-transform:uppercase
 .msg.ok{color:var(--accent)}
 .program-editor{display:none; margin-top:10px; padding-top:14px; border-top:0.5px solid var(--cardborder)}
 .program-editor.show{display:block}
-.phase-row,.act-row{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px}
-.act-row{grid-template-columns:140px 1fr auto}
+.phase-row{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px}
+.act-row{display:grid; grid-template-columns:140px 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px}
 .act-row textarea{min-height:44px}
 .link{background:none; border:none; color:var(--accent); cursor:pointer; font-size:12px; text-decoration:underline; padding:0}
 </style>
 </head>
 <body>
 <h1>Admin Center</h1>
-<div class="sub">Manage athlete accounts and training programs. This page is unlisted — protected only by not being linked anywhere.</div>
+<div class="sub">Manage athlete accounts, activity types and training programs. This page is unlisted — protected only by not being linked anywhere.</div>
 
 <h2>Athletes</h2>
 <div class="card">
@@ -61,6 +63,19 @@ h2{font-family:"Syne"; font-weight:700; font-size:16px; text-transform:uppercase
   <div class="field"><label>Linked programs</label><div class="checks" id="newAthletePrograms"></div></div>
   <button class="btn mint" id="createAthleteBtn">+ Create athlete</button>
   <div class="msg" id="athleteMsg"></div>
+</div>
+
+<h2>Activities</h2>
+<div class="card">
+  <div id="activityTypeList"></div>
+</div>
+<div class="card">
+  <div class="field"><label>Key (unique, letters/numbers/underscore only)</label><input id="newActKey" placeholder="cycling_z2"></div>
+  <div class="field"><label>Label</label><input id="newActLabel" placeholder="Cycling Zone 2"></div>
+  <div class="field"><label>Explainer text</label><textarea id="newActInfo"></textarea></div>
+  <div class="field checkbox"><input type="checkbox" id="newActRunProgress"><label for="newActRunProgress">Add to Run Progress Analytics</label></div>
+  <button class="btn mint" id="createActivityTypeBtn">+ Create activity type</button>
+  <div class="msg" id="activityTypeMsg"></div>
 </div>
 
 <h2>Training Programs</h2>
@@ -87,6 +102,7 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<'
 
 let athletes = [];
 let programs = [];
+let activityTypes = [];
 
 async function loadAthletes(){
   athletes = await api('/admin/athletes');
@@ -103,13 +119,41 @@ function renderNewAthleteProgramChecks(){
   wrap.innerHTML = programs.map(p=>`<label><input type="checkbox" value="${p.id}"> ${escapeHtml(p.name)}</label>`).join('') || '<span class="meta">Create a program first.</span>';
 }
 
+async function loadActivityTypes(){
+  activityTypes = await api('/admin/activity-types');
+  const list = document.getElementById('activityTypeList');
+  list.innerHTML = activityTypes.length ? activityTypes.map(a=>`
+    <div class="act-row" data-act-id="${a.id}" data-key="${escapeHtml(a.key)}">
+      <div class="field" style="margin-bottom:0"><input value="${escapeHtml(a.label)}" data-f="label"></div>
+      <div class="field" style="margin-bottom:0"><textarea data-f="infoText">${escapeHtml(a.infoText)}</textarea></div>
+      <div class="field checkbox" style="margin-bottom:0"><input type="checkbox" data-f="showInRunProgress" ${a.showInRunProgress?'checked':''}><label>Run Progress</label></div>
+      <button class="btn small save-activity-type">save</button>
+    </div>`).join('') : '<div class="meta">No activity types yet.</div>';
+  list.querySelectorAll('.save-activity-type').forEach(btn=> btn.addEventListener('click', e=>{
+    const row = e.target.closest('[data-key]');
+    updateActivityType(row.dataset.key, {
+      label: row.querySelector('[data-f="label"]').value,
+      infoText: row.querySelector('[data-f="infoText"]').value,
+      showInRunProgress: row.querySelector('[data-f="showInRunProgress"]').checked,
+    });
+  }));
+}
+async function updateActivityType(key, body){
+  const msg = document.getElementById('activityTypeMsg');
+  try{
+    await api(`/admin/activity-types/${key}`, {method:'PUT', body: JSON.stringify(body)});
+    msg.className='msg ok'; msg.textContent='Activity type updated.';
+    await loadActivityTypes();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+
 async function loadPrograms(){
   programs = await api('/admin/programs');
   const list = document.getElementById('programList');
   list.innerHTML = programs.map(p=>`
     <div class="row">
       <div><span class="name">${escapeHtml(p.name)}</span></div>
-      <button class="link" data-pid="${p.id}">edit phases &amp; activity types</button>
+      <button class="link" data-pid="${p.id}">edit phases &amp; linked activities</button>
     </div>
     <div class="program-editor" id="editor-${p.id}"></div>
   `).join('') || '<div class="meta">No programs yet.</div>';
@@ -129,6 +173,7 @@ async function toggleProgramEditor(programId){
 async function renderProgramEditor(programId, editor){
   editor.innerHTML = 'Loading…';
   const p = await api(`/admin/programs/${programId}`);
+  const linkedIds = new Set(p.activityTypes.map(a=>a.id));
   editor.innerHTML = `
     <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin-bottom:10px">Phases</h3>
     <div id="phases-${programId}"></div>
@@ -138,13 +183,16 @@ async function renderProgramEditor(programId, editor){
       <div class="field" style="margin-bottom:0"><label>End date</label><input id="pEnd-${programId}" type="date"></div>
       <button class="btn small" id="addPhaseBtn-${programId}">+ Add</button>
     </div>
-    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin:18px 0 10px">Activity types</h3>
-    <div id="acts-${programId}"></div>
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin:18px 0 10px">Linked activity types</h3>
+    <div class="checks" id="linkedActs-${programId}">${activityTypes.map(a=>`
+      <label><input type="checkbox" value="${a.id}" ${linkedIds.has(a.id)?'checked':''}> ${escapeHtml(a.label)}</label>
+    `).join('') || '<span class="meta">Create an activity type first.</span>'}</div>
+    <button class="btn small" id="saveActsBtn-${programId}" style="margin-top:10px">Save linked activities</button>
     <div class="msg" id="editorMsg-${programId}"></div>
   `;
   renderPhasesList(programId, p.phases);
-  renderActivityTypesList(programId, p.activityTypes);
   document.getElementById(`addPhaseBtn-${programId}`).addEventListener('click', ()=> addPhase(programId));
+  document.getElementById(`saveActsBtn-${programId}`).addEventListener('click', ()=> saveLinkedActivityTypes(programId));
 }
 
 function renderPhasesList(programId, phases){
@@ -170,22 +218,6 @@ function renderPhasesList(programId, phases){
   wrap.querySelectorAll('.del-phase').forEach(btn=> btn.addEventListener('click', e=>{
     const row = e.target.closest('[data-phase-id]');
     if(confirm('Delete this phase?')) deletePhase(programId, row.dataset.phaseId);
-  }));
-}
-function renderActivityTypesList(programId, activityTypes){
-  const wrap = document.getElementById(`acts-${programId}`);
-  wrap.innerHTML = activityTypes.map(a=>`
-    <div class="act-row" data-key="${a.key}">
-      <div class="field" style="margin-bottom:0"><input value="${escapeHtml(a.label)}" data-f="label"></div>
-      <div class="field" style="margin-bottom:0"><textarea data-f="infoText">${escapeHtml(a.infoText)}</textarea></div>
-      <button class="btn small save-act">save</button>
-    </div>`).join('');
-  wrap.querySelectorAll('.save-act').forEach(btn=> btn.addEventListener('click', e=>{
-    const row = e.target.closest('[data-key]');
-    updateActivityType(programId, row.dataset.key, {
-      label: row.querySelector('[data-f="label"]').value,
-      infoText: row.querySelector('[data-f="infoText"]').value,
-    });
   }));
 }
 
@@ -217,11 +249,12 @@ async function deletePhase(programId, phaseId){
     renderPhasesList(programId, p.phases);
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
-async function updateActivityType(programId, key, body){
+async function saveLinkedActivityTypes(programId){
   const msg = document.getElementById(`editorMsg-${programId}`);
+  const activityTypeIds = [...document.querySelectorAll(`#linkedActs-${programId} input:checked`)].map(c=>Number(c.value));
   try{
-    await api(`/admin/programs/${programId}/activity-types/${key}`, {method:'PUT', body: JSON.stringify(body)});
-    msg.className='msg ok'; msg.textContent='Activity type updated.';
+    await api(`/admin/programs/${programId}/activity-types`, {method:'PUT', body: JSON.stringify({activityTypeIds})});
+    msg.className='msg ok'; msg.textContent='Linked activities saved.';
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
 
@@ -239,19 +272,34 @@ document.getElementById('createAthleteBtn').addEventListener('click', async()=>{
     await loadAthletes();
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 });
+document.getElementById('createActivityTypeBtn').addEventListener('click', async()=>{
+  const msg = document.getElementById('activityTypeMsg');
+  const key = document.getElementById('newActKey').value.trim();
+  const label = document.getElementById('newActLabel').value.trim();
+  const infoText = document.getElementById('newActInfo').value.trim();
+  const showInRunProgress = document.getElementById('newActRunProgress').checked;
+  if(!key||!label||!infoText){ msg.className='msg err'; msg.textContent='Key, label and explainer text are required.'; return; }
+  try{
+    await api('/admin/activity-types', {method:'POST', body: JSON.stringify({key,label,infoText,showInRunProgress})});
+    msg.className='msg ok'; msg.textContent='Activity type created.';
+    document.getElementById('newActKey').value=''; document.getElementById('newActLabel').value=''; document.getElementById('newActInfo').value=''; document.getElementById('newActRunProgress').checked=false;
+    await loadActivityTypes();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+});
 document.getElementById('createProgramBtn').addEventListener('click', async()=>{
   const msg = document.getElementById('programMsg');
   const name = document.getElementById('newProgramName').value.trim();
   if(!name){ msg.className='msg err'; msg.textContent='Program name is required.'; return; }
   try{
     await api('/admin/programs', {method:'POST', body: JSON.stringify({name})});
-    msg.className='msg ok'; msg.textContent='Program created (5 default activity types seeded).';
+    msg.className='msg ok'; msg.textContent='Program created — link activity types below.';
     document.getElementById('newProgramName').value='';
     await loadPrograms();
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 });
 
 (async function init(){
+  await loadActivityTypes();
   await loadPrograms();
   await loadAthletes();
 })();

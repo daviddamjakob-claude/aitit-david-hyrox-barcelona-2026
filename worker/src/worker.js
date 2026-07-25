@@ -7,6 +7,7 @@
 //   GET  /program/:id/config             -> {phases:[...], activityTypes:[...]}
 //   GET  /program/:id/state              -> stored JSON blob (or null)
 //   POST /program/:id/state              -> stores the request body as the JSON blob
+//   GET  /program/:id/leaderboard        -> computed week/wave/program stats per linked athlete
 //
 // Admin routes (no auth check — protected only by the URL being unlisted, by design):
 //   GET  /admin/athletes                 POST /admin/athletes {username,password,displayName,programIds}
@@ -16,17 +17,11 @@
 //   POST /admin/programs/:id/phases       {name,startDate,endDate}
 //   PUT  /admin/programs/:id/phases/:phaseId   {name,startDate,endDate}
 //   DELETE /admin/programs/:id/phases/:phaseId
-//   PUT  /admin/programs/:id/activity-types/:key   {label,infoText}
+//   PUT  /admin/programs/:id/activity-types   {activityTypeIds:[...]}  (replaces linked set)
+//   GET  /admin/activity-types           POST /admin/activity-types {key,label,infoText,showInRunProgress}
+//   PUT  /admin/activity-types/:key      {label,infoText,showInRunProgress}
 
 const ALLOWED_ORIGIN = 'https://daviddamjakob-claude.github.io';
-
-const DEFAULT_ACTIVITY_TYPES = [
-  { key: 'zone2', label: 'Zone 2 Cardio', infoText: 'Longer, aerobic effort — which means that you avoid the high intensity zones. Steered by HR, keep the average at 65–75% of your true max (approx. 220 - age). This should be a pace at which you could still have a conversation. Ideally aim for 60+min, especially for your main Zone 2 session in a week. Possible to alternate runs with cycling or even row/ski erg.' },
-  { key: 'runIntervals', label: 'Run Intervals', infoText: 'Intense efforts separated by short breaks. Common intervals are 400m (10-20x), 1km or 1.2km (4-8x), 2km (3-5x). Breaks are 1-2min at moderate walking pace. Total work session length varies between 30-60min, ideally with an additional warm-up and cool-down at relaxed pace (~1km each).' },
-  { key: 'exerciseIntervals', label: 'Hybrid Intervals', infoText: 'Intense efforts separated by short breaks. Typically with a mix of row erg, ski erg and running sets, commonly mixed with burpee jumps, lunges and wall balls. Shorten the breaks over time — races are won on tired legs and in the transitions between runs and exercises. Total work session length varies between 45-60min.' },
-  { key: 'strength', label: 'Strength', infoText: 'Preference-led. Can but doesn’t need to have a Hyrox focus (lower-body and leg strength, grip strength, sled push & pull work).' },
-  { key: 'mobility', label: 'Mobility & Recovery', infoText: 'Preference-led. Effective options include but are not limited to yoga, stretching, mobility, massage or sauna.' },
-];
 
 function corsHeaders(origin) {
   return {
@@ -68,6 +63,59 @@ async function athleteHasProgram(env, athleteId, programId) {
   return !!row;
 }
 
+// ---------------- week/phase derivation (mirrors deriveWeeks() in index.html) ----------------
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+function deriveWeeksWithIds(phases) {
+  const weeks = [];
+  let wn = 0;
+  phases.forEach(p => {
+    const start = new Date(p.startDate + 'T00:00:00Z');
+    const end = new Date(p.endDate + 'T00:00:00Z');
+    let cursor = new Date(start);
+    while (cursor <= end) {
+      wn++;
+      const wStart = new Date(cursor);
+      let wEnd = new Date(cursor); wEnd.setUTCDate(wEnd.getUTCDate() + 6);
+      if (wEnd > end) wEnd = new Date(end);
+      weeks.push({ id: 'w' + wn, phaseName: p.name, startISO: isoDate(wStart), endISO: isoDate(wEnd) });
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
+    }
+  });
+  return weeks;
+}
+function weekStatusOf(w, todayISO) {
+  if (todayISO > w.endISO) return 'past';
+  if (todayISO < w.startISO) return 'future';
+  return 'current';
+}
+function sumWeeks(weeks, stateData) {
+  let sessions = 0, target = 0, km = 0;
+  weeks.forEach(w => {
+    const wk = stateData && stateData.weeks && stateData.weeks[w.id];
+    if (!wk) return;
+    const workouts = wk.workouts || [];
+    sessions += workouts.length;
+    workouts.forEach(x => {
+      const v = parseFloat(x.values && x.values.km);
+      if (!isNaN(v)) km += v;
+    });
+    if (wk.targets) Object.values(wk.targets).forEach(t => { target += Number(t.planned) || 0; });
+  });
+  return { sessions, target, km: Math.round(km * 10) / 10, completionPct: target > 0 ? Math.round(sessions / target * 100) : 0 };
+}
+function computeAthleteStats(weeks, stateData) {
+  const todayISO = isoDate(new Date());
+  const currentWeek = weeks.find(w => weekStatusOf(w, todayISO) === 'current');
+  const nonFutureWeeks = weeks.filter(w => weekStatusOf(w, todayISO) !== 'future');
+  const currentWaveName = currentWeek ? currentWeek.phaseName : null;
+  const waveWeeks = currentWaveName ? nonFutureWeeks.filter(w => w.phaseName === currentWaveName) : [];
+  return {
+    currentWeek: currentWeek ? sumWeeks([currentWeek], stateData) : { sessions: 0, target: 0, km: 0, completionPct: 0 },
+    currentWave: { ...sumWeeks(waveWeeks, stateData), waveName: currentWaveName },
+    program: sumWeeks(nonFutureWeeks, stateData),
+  };
+}
+
 // ---------------- route handlers ----------------
 async function handleLogin(request, env, cors) {
   const body = await readJson(request);
@@ -99,8 +147,10 @@ async function handleProgramConfig(request, env, cors, programId) {
   if (!athleteId) return json({ error: 'Unauthorized' }, 401, cors);
   if (!(await athleteHasProgram(env, athleteId, programId))) return json({ error: 'Forbidden' }, 403, cors);
   const phases = await env.DB.prepare('SELECT id, name, start_date AS startDate, end_date AS endDate FROM phases WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
-  const activityTypes = await env.DB.prepare('SELECT key, label, info_text AS infoText FROM activity_types WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
-  return json({ phases: phases.results, activityTypes: activityTypes.results }, 200, cors);
+  const activityTypes = await env.DB.prepare(
+    'SELECT a.key, a.label, a.info_text AS infoText, a.show_in_run_progress AS showInRunProgress FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? ORDER BY pat.sort_order'
+  ).bind(programId).all();
+  return json({ phases: phases.results, activityTypes: activityTypes.results.map(r => ({ ...r, showInRunProgress: !!r.showInRunProgress })) }, 200, cors);
 }
 async function handleStateGet(request, env, cors, programId) {
   const athleteId = await requireAthlete(request, env);
@@ -120,6 +170,23 @@ async function handleStatePost(request, env, cors, programId) {
     'ON CONFLICT(athlete_id, program_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
   ).bind(athleteId, programId, body).run();
   return json({ ok: true }, 200, cors);
+}
+async function handleLeaderboard(request, env, cors, programId) {
+  const athleteId = await requireAthlete(request, env);
+  if (!athleteId) return json({ error: 'Unauthorized' }, 401, cors);
+  if (!(await athleteHasProgram(env, athleteId, programId))) return json({ error: 'Forbidden' }, 403, cors);
+  const phasesRes = await env.DB.prepare('SELECT name, start_date AS startDate, end_date AS endDate FROM phases WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
+  const weeks = deriveWeeksWithIds(phasesRes.results);
+  const linked = await env.DB.prepare(
+    'SELECT a.id, a.display_name AS displayName FROM athletes a JOIN athlete_programs ap ON ap.athlete_id = a.id WHERE ap.program_id = ? ORDER BY a.id'
+  ).bind(programId).all();
+  const athletes = [];
+  for (const a of linked.results) {
+    const stateRow = await env.DB.prepare('SELECT data FROM program_state WHERE athlete_id = ? AND program_id = ?').bind(a.id, programId).first();
+    const stateData = stateRow ? JSON.parse(stateRow.data) : null;
+    athletes.push({ athleteId: a.id, displayName: a.displayName, ...computeAthleteStats(weeks, stateData) });
+  }
+  return json({ athletes }, 200, cors);
 }
 
 // ---------------- admin handlers (no auth, by design) ----------------
@@ -161,20 +228,16 @@ async function adminCreateProgram(request, env, cors) {
   const body = await readJson(request);
   if (!body || !body.name) return json({ error: 'name required' }, 400, cors);
   const result = await env.DB.prepare('INSERT INTO programs (name) VALUES (?)').bind(body.name).run();
-  const programId = result.meta.last_row_id;
-  let order = 0;
-  for (const a of DEFAULT_ACTIVITY_TYPES) {
-    await env.DB.prepare('INSERT INTO activity_types (program_id, key, label, info_text, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .bind(programId, a.key, a.label, a.infoText, order++).run();
-  }
-  return json({ id: programId }, 201, cors);
+  return json({ id: result.meta.last_row_id }, 201, cors);
 }
 async function adminGetProgram(env, cors, programId) {
   const program = await env.DB.prepare('SELECT id, name FROM programs WHERE id = ?').bind(programId).first();
   if (!program) return json({ error: 'Not found' }, 404, cors);
   const phases = await env.DB.prepare('SELECT id, name, start_date AS startDate, end_date AS endDate FROM phases WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
-  const activityTypes = await env.DB.prepare('SELECT key, label, info_text AS infoText FROM activity_types WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
-  return json({ ...program, phases: phases.results, activityTypes: activityTypes.results }, 200, cors);
+  const activityTypes = await env.DB.prepare(
+    'SELECT a.id, a.key, a.label, a.info_text AS infoText, a.show_in_run_progress AS showInRunProgress FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? ORDER BY pat.sort_order'
+  ).bind(programId).all();
+  return json({ ...program, phases: phases.results, activityTypes: activityTypes.results.map(r => ({ ...r, showInRunProgress: !!r.showInRunProgress })) }, 200, cors);
 }
 async function adminCreatePhase(request, env, cors, programId) {
   const body = await readJson(request);
@@ -194,11 +257,37 @@ async function adminDeletePhase(env, cors, phaseId) {
   await env.DB.prepare('DELETE FROM phases WHERE id = ?').bind(phaseId).run();
   return json({ ok: true }, 200, cors);
 }
-async function adminUpdateActivityType(request, env, cors, programId, key) {
+async function adminUpdateProgramActivityTypes(request, env, cors, programId) {
+  const body = await readJson(request);
+  if (!body || !Array.isArray(body.activityTypeIds)) return json({ error: 'activityTypeIds array required' }, 400, cors);
+  await env.DB.prepare('DELETE FROM program_activity_types WHERE program_id = ?').bind(programId).run();
+  let order = 0;
+  for (const activityTypeId of body.activityTypeIds) {
+    await env.DB.prepare('INSERT INTO program_activity_types (program_id, activity_type_id, sort_order) VALUES (?, ?, ?)').bind(programId, activityTypeId, order++).run();
+  }
+  return json({ ok: true }, 200, cors);
+}
+async function adminListActivityTypes(env, cors) {
+  const rows = await env.DB.prepare('SELECT id, key, label, info_text AS infoText, show_in_run_progress AS showInRunProgress FROM activity_types ORDER BY id').all();
+  return json(rows.results.map(r => ({ ...r, showInRunProgress: !!r.showInRunProgress })), 200, cors);
+}
+async function adminCreateActivityType(request, env, cors) {
+  const body = await readJson(request);
+  if (!body || !body.key || !body.label || !body.infoText) return json({ error: 'key, label, infoText required' }, 400, cors);
+  if (!/^[a-zA-Z0-9_]+$/.test(body.key)) return json({ error: 'key must contain only letters, numbers and underscores' }, 400, cors);
+  try {
+    const result = await env.DB.prepare('INSERT INTO activity_types (key, label, info_text, show_in_run_progress) VALUES (?, ?, ?, ?)')
+      .bind(body.key, body.label, body.infoText, body.showInRunProgress ? 1 : 0).run();
+    return json({ id: result.meta.last_row_id }, 201, cors);
+  } catch (err) {
+    return json({ error: 'That key already exists' }, 400, cors);
+  }
+}
+async function adminUpdateActivityType(request, env, cors, key) {
   const body = await readJson(request);
   if (!body || !body.label || !body.infoText) return json({ error: 'label, infoText required' }, 400, cors);
-  await env.DB.prepare('UPDATE activity_types SET label = ?, info_text = ? WHERE program_id = ? AND key = ?')
-    .bind(body.label, body.infoText, programId, key).run();
+  await env.DB.prepare('UPDATE activity_types SET label = ?, info_text = ?, show_in_run_progress = ? WHERE key = ?')
+    .bind(body.label, body.infoText, body.showInRunProgress ? 1 : 0, key).run();
   return json({ ok: true }, 200, cors);
 }
 
@@ -220,6 +309,7 @@ export default {
       if (seg[0] === 'program' && seg[2] === 'config' && method === 'GET') return handleProgramConfig(request, env, cors, seg[1]);
       if (seg[0] === 'program' && seg[2] === 'state' && method === 'GET') return handleStateGet(request, env, cors, seg[1]);
       if (seg[0] === 'program' && seg[2] === 'state' && method === 'POST') return handleStatePost(request, env, cors, seg[1]);
+      if (seg[0] === 'program' && seg[2] === 'leaderboard' && method === 'GET') return handleLeaderboard(request, env, cors, seg[1]);
 
       if (seg[0] === 'admin' && seg[1] === 'athletes' && !seg[2] && method === 'GET') return adminListAthletes(env, cors);
       if (seg[0] === 'admin' && seg[1] === 'athletes' && !seg[2] && method === 'POST') return adminCreateAthlete(request, env, cors);
@@ -231,7 +321,11 @@ export default {
       if (seg[0] === 'admin' && seg[1] === 'programs' && seg[3] === 'phases' && !seg[4] && method === 'POST') return adminCreatePhase(request, env, cors, seg[2]);
       if (seg[0] === 'admin' && seg[1] === 'programs' && seg[3] === 'phases' && seg[4] && method === 'PUT') return adminUpdatePhase(request, env, cors, seg[4]);
       if (seg[0] === 'admin' && seg[1] === 'programs' && seg[3] === 'phases' && seg[4] && method === 'DELETE') return adminDeletePhase(env, cors, seg[4]);
-      if (seg[0] === 'admin' && seg[1] === 'programs' && seg[3] === 'activity-types' && seg[4] && method === 'PUT') return adminUpdateActivityType(request, env, cors, seg[2], seg[4]);
+      if (seg[0] === 'admin' && seg[1] === 'programs' && seg[3] === 'activity-types' && !seg[4] && method === 'PUT') return adminUpdateProgramActivityTypes(request, env, cors, seg[2]);
+
+      if (seg[0] === 'admin' && seg[1] === 'activity-types' && !seg[2] && method === 'GET') return adminListActivityTypes(env, cors);
+      if (seg[0] === 'admin' && seg[1] === 'activity-types' && !seg[2] && method === 'POST') return adminCreateActivityType(request, env, cors);
+      if (seg[0] === 'admin' && seg[1] === 'activity-types' && seg[2] && method === 'PUT') return adminUpdateActivityType(request, env, cors, seg[2]);
 
       return json({ error: 'Not found' }, 404, cors);
     } catch (err) {

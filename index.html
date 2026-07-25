@@ -239,6 +239,27 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 .fb .t{font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin-top:4px}
 .fb.great{border-color:var(--accent)} .fb.great .n{color:var(--accent)}
 
+.an-section-title{font-family:"Syne"; font-weight:800; font-size:16px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin:30px 0 14px}
+.an-section-title:first-of-type{margin-top:0}
+
+.lb-table{display:flex; flex-direction:column; gap:8px}
+.lb-row{display:grid; grid-template-columns:140px repeat(3,1fr); gap:10px; align-items:center; background:#fff; border:0.5px solid var(--cardborder); border-radius:8px; padding:12px 16px; box-shadow:var(--shadow)}
+.lb-row.lb-head{background:transparent; border:none; box-shadow:none; padding:0 16px}
+.lb-row.lb-head .lb-tier-head{text-align:center; font-size:9.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted)}
+.lb-athlete{font-weight:700; font-family:"Syne"; color:var(--ink); font-size:13px}
+.lb-tier{text-align:center; font-size:11px; color:var(--mid); display:flex; flex-direction:column; gap:2px}
+.lb-tier b{font-family:"Syne"; font-size:17px; color:var(--ink); font-variant-numeric:tabular-nums}
+.lb-empty{font-size:11px; color:var(--muted2); font-style:italic; padding:8px 0}
+
+.rp-controls{display:flex; gap:20px; flex-wrap:wrap; margin-bottom:16px}
+.rp-controls label{font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); display:flex; flex-direction:column; gap:5px}
+.rp-controls select{font-family:"Space Grotesk"; font-size:12px; color:var(--ink); background:#fff; border:0.5px solid var(--cardborder); border-radius:5px; padding:6px 9px; text-transform:none; letter-spacing:0}
+.rp-bars{display:flex; align-items:flex-end; gap:10px; height:200px; padding:10px 4px 0; overflow-x:auto}
+.rp-bar{display:flex; flex-direction:column; align-items:center; min-width:26px; flex:0 0 auto; height:100%; justify-content:flex-end}
+.rp-bar-track{width:20px; background:var(--track); border-radius:3px 3px 0 0; display:flex; align-items:flex-end; overflow:hidden}
+.rp-bar-fill{width:100%; background:var(--accent); border-radius:3px 3px 0 0}
+.rp-bar-label{font-size:8px; color:var(--muted); margin-top:6px; writing-mode:vertical-rl; text-orientation:mixed; white-space:nowrap}
+
 /* ---------- SIMULATIONS ---------- */
 .sim-empty{max-width:440px; text-align:center; padding:40px}
 .sim-empty .tag{display:inline-block; font-size:9px; letter-spacing:0.2em; text-transform:uppercase; color:var(--accent); border:0.5px solid var(--accent); border-radius:20px; padding:4px 12px; margin-bottom:20px}
@@ -437,6 +458,7 @@ async function fetchMe(){
 let ACTIVITIES = [];      // [{key,label}]
 let ACT_MAP = {};         // key -> label
 let ACT_INFO = {};        // key -> explainer text
+let RUN_PROGRESS_KEYS = [];  // keys flagged "Add to Run Progress Analytics"
 const ACT_SHORT = {zone2:'Zone 2', runIntervals:'Run int.', exerciseIntervals:'Hybrid int.', strength:'Strength', mobility:'Mobility'};
 
 /* ---------------- PHOTOS (Cloudinary, same account as training-dashboard-v2) ---------------- */
@@ -866,8 +888,14 @@ function renderAnalytics(){
       <div class="abar"><i style="width:${Math.min(p,100)}%"></i></div>
       <div class="wr">${w.done}/${w.target}</div></div>`;
   }).join('');
+  const hasRunProgress = RUN_PROGRESS_KEYS.length>0;
   document.getElementById('analytics').innerHTML=`
     <div class="an-head"><span class="phase-rule"></span><span class="an-title">Analytics</span><span class="an-sub">${escapeHtml(state.target)}</span></div>
+
+    <div class="an-section-title">Program Leaderboard</div>
+    <div id="leaderboardSection"><div class="lb-empty">Loading…</div></div>
+
+    <div class="an-section-title">Individual Analytics</div>
     <div class="stat-row">
       <div class="stat"><div class="k">Sessions logged</div><div class="v">${s.totalDone}</div></div>
       <div class="stat"><div class="k">Sessions planned</div><div class="v">${s.totalTarget}</div></div>
@@ -883,7 +911,113 @@ function renderAnalytics(){
           <div class="fb"><div class="n">${s.rc.good}</div><div class="t">good</div></div>
           <div class="fb"><div class="n">${s.rc.meh}</div><div class="t">not happy</div></div>
         </div></div>
-    </div>`;
+    </div>
+    ${hasRunProgress ? `
+    <div class="an-card" style="margin-top:20px">
+      <h4>Zone 2 Run Progress</h4>
+      <div class="rp-controls">
+        <label>Axis 1 (bar height)<select id="rpAxis1"></select></label>
+        <label>Axis 2 (fill height)<select id="rpAxis2"></select></label>
+      </div>
+      <div id="runProgressChart"></div>
+    </div>` : ''}`;
+  loadLeaderboard();
+  if(hasRunProgress){ wireRunProgressControls(); renderRunProgressChart(); }
+}
+
+/* ---------------- PROGRAM LEADERBOARD ---------------- */
+async function loadLeaderboard(){
+  const section=document.getElementById('leaderboardSection');
+  if(!section) return;
+  try{
+    const res=await apiFetch(`/program/${activeProgramId}/leaderboard`);
+    if(!res.ok) throw new Error('leaderboard fetch failed');
+    const data=await res.json();
+    section.innerHTML=renderLeaderboardHtml(data.athletes||[]);
+  }catch(e){
+    section.innerHTML='<div class="lb-empty">Could not load the leaderboard.</div>';
+  }
+}
+function renderLeaderboardHtml(athletesStats){
+  if(!athletesStats.length) return '<div class="lb-empty">No athletes on this program yet.</div>';
+  const tiers=[{key:'currentWeek',label:'This Week'},{key:'currentWave',label:'This Wave'},{key:'program',label:'Program'}];
+  const tierCell=d=>`<div class="lb-tier"><b>${d.sessions}</b><span>${d.completionPct}% of target</span><span>${d.km} km</span></div>`;
+  return `<div class="lb-table">
+    <div class="lb-row lb-head"><div></div>${tiers.map(t=>`<div class="lb-tier-head">${t.label}</div>`).join('')}</div>
+    ${athletesStats.map(a=>`<div class="lb-row">
+      <div class="lb-athlete">${escapeHtml(a.displayName)}</div>
+      ${tiers.map(t=>tierCell(a[t.key])).join('')}
+    </div>`).join('')}
+  </div>`;
+}
+
+/* ---------------- ZONE 2 RUN PROGRESS ---------------- */
+const RUN_PROGRESS_METRICS = {
+  time:      {label:'Time',        field:'time',      parse:parseHM, invert:false},
+  km:        {label:'Km',          field:'km',        parse:v=>parseFloat(v), invert:false},
+  avgPace:   {label:'Avg Pace',    field:'avgPace',   parse:parseMS, invert:true},
+  avgHr:     {label:'Avg HR',      field:'avgHr',     parse:v=>parseFloat(v), invert:true},
+  fastestKm: {label:'Fastest Km',  field:'fastestKm', parse:parseMS, invert:true},
+  maxHr:     {label:'Max HR',      field:'maxHr',     parse:v=>parseFloat(v), invert:true},
+};
+let runProgressAxis1='km', runProgressAxis2='avgHr';
+function parseHM(v){ // "1:55" -> 115 (H:MM), "0:46:54" -> 46.9 (H:MM:SS)
+  if(v==null||v==='') return NaN;
+  const parts=String(v).split(':').map(Number);
+  if(parts.some(isNaN)) return NaN;
+  if(parts.length===2) return parts[0]*60+parts[1];
+  if(parts.length===3) return parts[0]*60+parts[1]+parts[2]/60;
+  return NaN;
+}
+function parseMS(v){ // "5:14" -> 5.23 (M:SS pace)
+  if(v==null||v==='') return NaN;
+  const parts=String(v).split(':').map(Number);
+  if(parts.some(isNaN)||parts.length!==2) return NaN;
+  return parts[0]+parts[1]/60;
+}
+function wireRunProgressControls(){
+  const a1=document.getElementById('rpAxis1'), a2=document.getElementById('rpAxis2');
+  [a1,a2].forEach(sel=>{
+    sel.innerHTML=Object.entries(RUN_PROGRESS_METRICS).map(([k,m])=>`<option value="${k}">${m.label}</option>`).join('');
+  });
+  a1.value=runProgressAxis1; a2.value=runProgressAxis2;
+  a1.addEventListener('change',()=>{ runProgressAxis1=a1.value; renderRunProgressChart(); });
+  a2.addEventListener('change',()=>{ runProgressAxis2=a2.value; renderRunProgressChart(); });
+}
+function getRunProgressActivities(){
+  const activities=[];
+  WEEKS.forEach(w=>{
+    (state.weeks[w.id].workouts||[]).forEach(x=>{ if(RUN_PROGRESS_KEYS.includes(x.type)) activities.push(x); });
+  });
+  activities.sort((a,b)=>{ const da=a.values.date||'', db=b.values.date||''; return da<db?-1:da>db?1:0; });
+  return activities;
+}
+function normalizePct(v,min,max,invert){
+  if(isNaN(v)) return 0;
+  if(max===min) return 100;
+  const pct=(v-min)/(max-min)*100;
+  return invert?100-pct:pct;
+}
+function renderRunProgressChart(){
+  const container=document.getElementById('runProgressChart');
+  if(!container) return;
+  const activities=getRunProgressActivities();
+  if(!activities.length){ container.innerHTML='<div class="lb-empty">No Zone 2 activities logged yet.</div>'; return; }
+  const m1=RUN_PROGRESS_METRICS[runProgressAxis1], m2=RUN_PROGRESS_METRICS[runProgressAxis2];
+  const v1=activities.map(a=>m1.parse(a.values[m1.field]));
+  const v2=activities.map(a=>m2.parse(a.values[m2.field]));
+  const valid1=v1.filter(v=>!isNaN(v)), valid2=v2.filter(v=>!isNaN(v));
+  const min1=valid1.length?Math.min(...valid1):0, max1=valid1.length?Math.max(...valid1):0;
+  const min2=valid2.length?Math.min(...valid2):0, max2=valid2.length?Math.max(...valid2):0;
+  const bars=activities.map((a,i)=>{
+    const p1=normalizePct(v1[i],min1,max1,m1.invert);
+    const p2=normalizePct(v2[i],min2,max2,m2.invert);
+    const barHeight=Math.max(p1,2);
+    const fillWithinBar=p1>0?Math.min(100,(Math.min(p1,p2)/p1)*100):0;
+    const dt=a.values.date?fmtDate(a.values.date):'—';
+    return `<div class="rp-bar"><div class="rp-bar-track" style="height:${barHeight}%"><div class="rp-bar-fill" style="height:${fillWithinBar}%"></div></div><div class="rp-bar-label">${dt}</div></div>`;
+  }).join('');
+  container.innerHTML=`<div class="rp-bars">${bars}</div>`;
 }
 
 /* ---------------- TABS ---------------- */
@@ -972,6 +1106,7 @@ async function loadProgram(programId){
   ACTIVITIES = cfg.activityTypes.map(a=>({key:a.key,label:a.label}));
   ACT_MAP = Object.fromEntries(ACTIVITIES.map(a=>[a.key,a.label]));
   ACT_INFO = Object.fromEntries(cfg.activityTypes.map(a=>[a.key,a.infoText]));
+  RUN_PROGRESS_KEYS = cfg.activityTypes.filter(a=>a.showInRunProgress).map(a=>a.key);
   populateActivitySelect();
   deriveWeeks(cfg.phases);
   const programName = (programsList.find(p=>String(p.id)===activeProgramId)||{}).name || 'Training plan';
