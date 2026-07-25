@@ -14,78 +14,144 @@
   --btntext:#FFFFFF; --shadow:0 1px 2px rgba(20,40,32,.05);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg); color:var(--mid); font-family:"Space Grotesk",system-ui,sans-serif; padding:32px; max-width:960px; margin:0 auto}
-h1{font-family:"Syne"; font-weight:800; font-size:24px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin-bottom:4px}
-.sub{font-size:12px; color:var(--muted); letter-spacing:0.04em; margin-bottom:28px}
-h2{font-family:"Syne"; font-weight:700; font-size:16px; text-transform:uppercase; letter-spacing:0.02em; color:var(--ink); margin:32px 0 14px}
-.card{background:#fff; border:0.5px solid var(--cardborder); border-radius:8px; padding:18px 20px; box-shadow:var(--shadow); margin-bottom:14px}
-.row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:0.5px solid var(--cardborder); font-size:13px}
+body{background:var(--bg); color:var(--mid); font-family:"Space Grotesk",system-ui,sans-serif; padding:36px 32px 60px; max-width:960px; margin:0 auto}
+h1{font-family:"Syne"; font-weight:800; font-size:26px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin-bottom:6px}
+.sub{font-size:12px; color:var(--muted); letter-spacing:0.03em; margin-bottom:36px; line-height:1.6}
+.section{margin-bottom:44px}
+.section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px}
+h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase; letter-spacing:0.03em; color:var(--accent)}
+.card{background:#fff; border:0.5px solid var(--cardborder); border-radius:10px; padding:8px 18px; box-shadow:var(--shadow)}
+.row{display:flex; justify-content:space-between; align-items:center; gap:14px; padding:13px 0; border-bottom:0.5px solid var(--s3); font-size:13px}
 .row:last-child{border-bottom:none}
-.row .name{font-weight:600; color:var(--ink)}
-.row .meta{font-size:11px; color:var(--muted)}
-.field{margin-bottom:12px}
-.field label{display:block; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:5px}
-.field input,.field textarea{width:100%; background:var(--bg); border:0.5px solid var(--cardborder); color:var(--ink); font-family:"Space Grotesk"; font-size:13px; padding:8px 10px; border-radius:5px; outline:none}
-.field textarea{resize:vertical; min-height:70px; line-height:1.5}
-.field input:focus,.field textarea:focus{border-color:var(--accent)}
-.field.checkbox{display:flex; align-items:center; gap:6px}
-.field.checkbox label{margin:0; font-size:12px; text-transform:none; letter-spacing:0; color:var(--mid)}
-.checks{display:flex; flex-wrap:wrap; gap:10px}
-.checks label{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--mid); font-weight:400; text-transform:none; letter-spacing:0}
-.btn{font-family:"Space Grotesk"; font-weight:500; font-size:12px; padding:8px 14px; border-radius:5px; cursor:pointer; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid)}
+.row .name{font-weight:700; font-family:"Syne"; color:var(--ink); font-size:14px}
+.row .meta{font-size:11px; color:var(--muted); margin-top:2px}
+.row-actions{display:flex; gap:14px; flex:0 0 auto}
+.empty-note{font-size:11px; color:var(--muted2); font-style:italic; padding:14px 0}
+
+.link{background:none; border:none; color:var(--accent); cursor:pointer; font-size:11px; letter-spacing:0.03em; text-decoration:underline; padding:0; white-space:nowrap}
+.link.danger{color:#c0392b}
+.link:hover{opacity:0.75}
+
+.btn{font-family:"Space Grotesk"; font-weight:500; font-size:12.5px; padding:9px 16px; border-radius:6px; cursor:pointer; border:0.5px solid var(--cardborder); background:#fff; color:var(--mid); transition:.15s}
 .btn:hover{border-color:var(--accent); color:var(--accent)}
 .btn.mint{border-color:var(--accent); background:var(--accent); color:var(--btntext)}
 .btn.mint:hover{background:var(--accentdark)}
-.btn.small{padding:4px 9px; font-size:11px}
-.msg{font-size:11px; margin-top:8px; min-height:14px}
+.btn.small{padding:5px 10px; font-size:11px}
+.btn.create{margin-top:14px}
+
+.field{margin-bottom:14px}
+.field label{display:block; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+.field input,.field textarea{width:100%; background:var(--bg); border:0.5px solid var(--cardborder); color:var(--ink); font-family:"Space Grotesk"; font-size:13px; padding:9px 11px; border-radius:6px; outline:none}
+.field input:focus,.field textarea:focus{border-color:var(--accent)}
+.field textarea{resize:vertical; min-height:74px; line-height:1.55}
+.checks{display:flex; flex-wrap:wrap; gap:10px 16px}
+.checks label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--mid); font-weight:400; text-transform:none; letter-spacing:0}
+.msg{font-size:11px; margin-top:10px; min-height:14px}
 .msg.err{color:#c0392b}
 .msg.ok{color:var(--accent)}
-.program-editor{display:none; margin-top:10px; padding-top:14px; border-top:0.5px solid var(--cardborder)}
+
+/* activity type cards (Activities section) */
+.activity-card{border:0.5px solid var(--cardborder); border-radius:8px; padding:16px; margin:14px 0}
+.activity-card .key-tag{display:inline-block; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); background:var(--bg); border-radius:4px; padding:3px 8px; margin-bottom:12px}
+.activity-card .field:last-child{margin-bottom:0}
+
+/* program editor (expandable, not a create-modal — used for editing existing programs) */
+.program-editor{display:none; margin-top:4px; padding:18px 0 6px; border-top:0.5px solid var(--s3)}
 .program-editor.show{display:block}
+.program-editor h4{font-family:"Syne"; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink); margin:0 0 12px}
 .phase-row{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px}
-.act-row{display:grid; grid-template-columns:140px 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px}
-.act-row textarea{min-height:44px}
-.link{background:none; border:none; color:var(--accent); cursor:pointer; font-size:12px; text-decoration:underline; padding:0}
+.phase-row .field{margin-bottom:0}
+
+/* modals (create flows only) */
+.overlay{position:fixed; inset:0; background:rgba(12,21,18,.45); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; z-index:60; padding:24px}
+.overlay.show{display:flex}
+.modal{background:#fff; border:0.5px solid var(--cardborder); border-radius:10px; width:100%; max-width:440px; max-height:88vh; overflow:auto; padding:26px; box-shadow:0 16px 48px rgba(12,21,18,.2)}
+.modal h3{font-family:"Syne"; font-weight:800; font-size:18px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin-bottom:20px}
+.modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:22px}
 </style>
 </head>
 <body>
 <h1>Admin Center</h1>
 <div class="sub">Manage athlete accounts, activity types and training programs. This page is unlisted — protected only by not being linked anywhere.</div>
 
-<h2>Athletes</h2>
-<div class="card">
-  <div id="athleteList"></div>
-</div>
-<div class="card">
-  <div class="field"><label>Username</label><input id="newUsername"></div>
-  <div class="field"><label>Password</label><input id="newPassword" type="text"></div>
-  <div class="field"><label>Display name</label><input id="newDisplayName"></div>
-  <div class="field"><label>Linked programs</label><div class="checks" id="newAthletePrograms"></div></div>
-  <button class="btn mint" id="createAthleteBtn">+ Create athlete</button>
-  <div class="msg" id="athleteMsg"></div>
+<div class="section">
+  <div class="section-head"><h2>Athletes</h2></div>
+  <div class="card"><div id="athleteList"></div></div>
+  <button class="btn mint create" id="openCreateAthleteBtn">+ Create athlete</button>
 </div>
 
-<h2>Activities</h2>
-<div class="card">
-  <div id="activityTypeList"></div>
-</div>
-<div class="card">
-  <div class="field"><label>Key (unique, letters/numbers/underscore only)</label><input id="newActKey" placeholder="cycling_z2"></div>
-  <div class="field"><label>Label</label><input id="newActLabel" placeholder="Cycling Zone 2"></div>
-  <div class="field"><label>Explainer text</label><textarea id="newActInfo"></textarea></div>
-  <div class="field checkbox"><input type="checkbox" id="newActRunProgress"><label for="newActRunProgress">Add to Run Progress Analytics</label></div>
-  <button class="btn mint" id="createActivityTypeBtn">+ Create activity type</button>
-  <div class="msg" id="activityTypeMsg"></div>
+<div class="section">
+  <div class="section-head"><h2>Activities</h2></div>
+  <div class="card" style="padding:16px 18px">
+    <div id="activityTypeList"></div>
+    <button class="btn mint" id="saveAllActivitiesBtn" style="margin-top:8px">Save changes</button>
+    <div class="msg" id="activityTypeMsg"></div>
+  </div>
+  <button class="btn mint create" id="openCreateActivityBtn">+ Create activity type</button>
 </div>
 
-<h2>Training Programs</h2>
-<div class="card">
-  <div id="programList"></div>
+<div class="section">
+  <div class="section-head"><h2>Training Programs</h2></div>
+  <div class="card"><div id="programList"></div></div>
+  <button class="btn mint create" id="openCreateProgramBtn">+ Create program</button>
 </div>
-<div class="card">
-  <div class="field"><label>Program name</label><input id="newProgramName"></div>
-  <button class="btn mint" id="createProgramBtn">+ Create program</button>
-  <div class="msg" id="programMsg"></div>
+
+<!-- Create athlete modal -->
+<div class="overlay" id="createAthleteModal">
+  <div class="modal">
+    <h3>Create athlete</h3>
+    <div class="field"><label>Username</label><input id="newUsername"></div>
+    <div class="field"><label>Password</label><input id="newPassword" type="text"></div>
+    <div class="field"><label>Display name</label><input id="newDisplayName"></div>
+    <div class="field"><label>Linked programs</label><div class="checks" id="newAthletePrograms"></div></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="createAthleteModal">Cancel</button>
+      <button class="btn mint" id="createAthleteBtn">Create</button>
+    </div>
+    <div class="msg" id="athleteMsg"></div>
+  </div>
+</div>
+
+<!-- Edit password modal -->
+<div class="overlay" id="editPasswordModal">
+  <div class="modal">
+    <h3>Edit password</h3>
+    <div class="field"><label>New password</label><input id="epNewPassword" type="text"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="editPasswordModal">Cancel</button>
+      <button class="btn mint" id="epSubmitBtn">Save</button>
+    </div>
+    <div class="msg" id="epMsg"></div>
+  </div>
+</div>
+
+<!-- Create activity type modal -->
+<div class="overlay" id="createActivityModal">
+  <div class="modal">
+    <h3>Create activity type</h3>
+    <div class="field"><label>Key (unique, letters/numbers/underscore only)</label><input id="newActKey" placeholder="cycling_z2"></div>
+    <div class="field"><label>Label</label><input id="newActLabel" placeholder="Cycling Zone 2"></div>
+    <div class="field"><label>Explainer text</label><textarea id="newActInfo"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="createActivityModal">Cancel</button>
+      <button class="btn mint" id="createActivityTypeBtn">Create</button>
+    </div>
+    <div class="msg" id="createActivityMsg"></div>
+  </div>
+</div>
+
+<!-- Create program modal -->
+<div class="overlay" id="createProgramModal">
+  <div class="modal">
+    <h3>Create program</h3>
+    <div class="field"><label>Program name</label><input id="newProgramName"></div>
+    <div class="field"><label>Link activity types</label><div class="checks" id="newProgramActs"></div></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="createProgramModal">Cancel</button>
+      <button class="btn mint" id="createProgramBtn">Create</button>
+    </div>
+    <div class="msg" id="programMsg"></div>
+  </div>
 </div>
 
 <script>
@@ -97,69 +163,167 @@ async function api(path, opts){
   if(!res.ok) throw new Error((data&&data.error)||'Request failed');
   return data;
 }
-function el(tag,cls){ const e=document.createElement(tag); if(cls)e.className=cls; return e; }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('[data-close-modal]').forEach(btn=> btn.addEventListener('click', ()=> closeModal(btn.dataset.closeModal)));
+document.querySelectorAll('.overlay').forEach(ov=> ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('show'); }));
 
 let athletes = [];
 let programs = [];
 let activityTypes = [];
 
+/* ---------------- ATHLETES ---------------- */
 async function loadAthletes(){
   athletes = await api('/admin/athletes');
   const list = document.getElementById('athleteList');
   list.innerHTML = athletes.length ? athletes.map(a=>`
     <div class="row">
-      <div><span class="name">${escapeHtml(a.displayName)}</span> <span class="meta">@${escapeHtml(a.username)}</span></div>
-      <div class="meta">${a.programs.map(p=>escapeHtml(p.name)).join(', ') || 'no programs linked'}</div>
-    </div>`).join('') : '<div class="meta">No athletes yet.</div>';
+      <div>
+        <div class="name">${escapeHtml(a.displayName)}</div>
+        <div class="meta">@${escapeHtml(a.username)} · ${a.programs.map(p=>escapeHtml(p.name)).join(', ') || 'no programs linked'}</div>
+      </div>
+      <div class="row-actions">
+        <button class="link" data-pwd="${a.id}">edit password</button>
+        <button class="link danger" data-del="${a.id}">delete</button>
+      </div>
+    </div>`).join('') : '<div class="empty-note">No athletes yet.</div>';
+  list.querySelectorAll('[data-pwd]').forEach(btn=> btn.addEventListener('click', ()=> openEditPassword(Number(btn.dataset.pwd))));
+  list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=> deleteAthlete(Number(btn.dataset.del))));
   renderNewAthleteProgramChecks();
 }
 function renderNewAthleteProgramChecks(){
   const wrap = document.getElementById('newAthletePrograms');
-  wrap.innerHTML = programs.map(p=>`<label><input type="checkbox" value="${p.id}"> ${escapeHtml(p.name)}</label>`).join('') || '<span class="meta">Create a program first.</span>';
+  wrap.innerHTML = programs.map(p=>`<label><input type="checkbox" value="${p.id}"> ${escapeHtml(p.name)}</label>`).join('') || '<span class="empty-note">Create a program first.</span>';
 }
 
+let editingPasswordAthleteId = null;
+function openEditPassword(athleteId){
+  editingPasswordAthleteId = athleteId;
+  document.getElementById('epNewPassword').value = '';
+  document.getElementById('epMsg').textContent = '';
+  openModal('editPasswordModal');
+}
+document.getElementById('epSubmitBtn').addEventListener('click', async()=>{
+  const msg = document.getElementById('epMsg');
+  const password = document.getElementById('epNewPassword').value;
+  if(!password){ msg.className='msg err'; msg.textContent='Enter a new password.'; return; }
+  try{
+    await api(`/admin/athletes/${editingPasswordAthleteId}/password`, {method:'PUT', body: JSON.stringify({password})});
+    closeModal('editPasswordModal');
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+});
+async function deleteAthlete(athleteId){
+  const a = athletes.find(x=>x.id===athleteId);
+  if(!confirm(`Delete athlete "${a?a.displayName:athleteId}"? This cannot be undone.`)) return;
+  try{
+    await api(`/admin/athletes/${athleteId}`, {method:'DELETE'});
+    await loadAthletes();
+  }catch(e){ alert(e.message); }
+}
+document.getElementById('openCreateAthleteBtn').addEventListener('click', ()=>{
+  document.getElementById('newUsername').value='';
+  document.getElementById('newPassword').value='';
+  document.getElementById('newDisplayName').value='';
+  document.getElementById('athleteMsg').textContent='';
+  renderNewAthleteProgramChecks();
+  openModal('createAthleteModal');
+});
+document.getElementById('createAthleteBtn').addEventListener('click', async()=>{
+  const msg = document.getElementById('athleteMsg');
+  const username = document.getElementById('newUsername').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const displayName = document.getElementById('newDisplayName').value.trim();
+  const programIds = [...document.querySelectorAll('#newAthletePrograms input:checked')].map(c=>Number(c.value));
+  if(!username||!password||!displayName){ msg.className='msg err'; msg.textContent='Username, password and display name are required.'; return; }
+  try{
+    await api('/admin/athletes', {method:'POST', body: JSON.stringify({username,password,displayName,programIds})});
+    closeModal('createAthleteModal');
+    await loadAthletes();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+});
+
+/* ---------------- ACTIVITIES ---------------- */
 async function loadActivityTypes(){
   activityTypes = await api('/admin/activity-types');
   const list = document.getElementById('activityTypeList');
   list.innerHTML = activityTypes.length ? activityTypes.map(a=>`
-    <div class="act-row" data-act-id="${a.id}" data-key="${escapeHtml(a.key)}">
-      <div class="field" style="margin-bottom:0"><input value="${escapeHtml(a.label)}" data-f="label"></div>
-      <div class="field" style="margin-bottom:0"><textarea data-f="infoText">${escapeHtml(a.infoText)}</textarea></div>
-      <div class="field checkbox" style="margin-bottom:0"><input type="checkbox" data-f="showInRunProgress" ${a.showInRunProgress?'checked':''}><label>Run Progress</label></div>
-      <button class="btn small save-activity-type">save</button>
-    </div>`).join('') : '<div class="meta">No activity types yet.</div>';
-  list.querySelectorAll('.save-activity-type').forEach(btn=> btn.addEventListener('click', e=>{
-    const row = e.target.closest('[data-key]');
-    updateActivityType(row.dataset.key, {
-      label: row.querySelector('[data-f="label"]').value,
-      infoText: row.querySelector('[data-f="infoText"]').value,
-      showInRunProgress: row.querySelector('[data-f="showInRunProgress"]').checked,
-    });
-  }));
+    <div class="activity-card" data-key="${escapeHtml(a.key)}">
+      <span class="key-tag">${escapeHtml(a.key)}</span>
+      <div class="field"><label>Label</label><input value="${escapeHtml(a.label)}" data-f="label"></div>
+      <div class="field"><label>Explainer text</label><textarea data-f="infoText">${escapeHtml(a.infoText)}</textarea></div>
+    </div>`).join('') : '<div class="empty-note">No activity types yet.</div>';
+  renderNewProgramActivityChecks();
 }
-async function updateActivityType(key, body){
+document.getElementById('saveAllActivitiesBtn').addEventListener('click', async()=>{
   const msg = document.getElementById('activityTypeMsg');
+  const cards = [...document.querySelectorAll('.activity-card')];
   try{
-    await api(`/admin/activity-types/${key}`, {method:'PUT', body: JSON.stringify(body)});
-    msg.className='msg ok'; msg.textContent='Activity type updated.';
+    for(const card of cards){
+      await api(`/admin/activity-types/${card.dataset.key}`, {method:'PUT', body: JSON.stringify({
+        label: card.querySelector('[data-f="label"]').value,
+        infoText: card.querySelector('[data-f="infoText"]').value,
+      })});
+    }
+    msg.className='msg ok'; msg.textContent='All changes saved.';
     await loadActivityTypes();
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
-}
+});
+document.getElementById('openCreateActivityBtn').addEventListener('click', ()=>{
+  document.getElementById('newActKey').value='';
+  document.getElementById('newActLabel').value='';
+  document.getElementById('newActInfo').value='';
+  document.getElementById('createActivityMsg').textContent='';
+  openModal('createActivityModal');
+});
+document.getElementById('createActivityTypeBtn').addEventListener('click', async()=>{
+  const msg = document.getElementById('createActivityMsg');
+  const key = document.getElementById('newActKey').value.trim();
+  const label = document.getElementById('newActLabel').value.trim();
+  const infoText = document.getElementById('newActInfo').value.trim();
+  if(!key||!label||!infoText){ msg.className='msg err'; msg.textContent='Key, label and explainer text are required.'; return; }
+  try{
+    await api('/admin/activity-types', {method:'POST', body: JSON.stringify({key,label,infoText})});
+    closeModal('createActivityModal');
+    await loadActivityTypes();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+});
 
+/* ---------------- TRAINING PROGRAMS ---------------- */
 async function loadPrograms(){
   programs = await api('/admin/programs');
   const list = document.getElementById('programList');
   list.innerHTML = programs.map(p=>`
     <div class="row">
-      <div><span class="name">${escapeHtml(p.name)}</span></div>
-      <button class="link" data-pid="${p.id}">edit phases &amp; linked activities</button>
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="row-actions"><button class="link" data-pid="${p.id}">edit phases &amp; linked activities</button></div>
     </div>
     <div class="program-editor" id="editor-${p.id}"></div>
-  `).join('') || '<div class="meta">No programs yet.</div>';
+  `).join('') || '<div class="empty-note">No programs yet.</div>';
   list.querySelectorAll('[data-pid]').forEach(btn=> btn.addEventListener('click', ()=> toggleProgramEditor(btn.dataset.pid)));
   renderNewAthleteProgramChecks();
 }
+function renderNewProgramActivityChecks(){
+  const wrap = document.getElementById('newProgramActs');
+  wrap.innerHTML = activityTypes.map(a=>`<label><input type="checkbox" value="${a.id}"> ${escapeHtml(a.label)}</label>`).join('') || '<span class="empty-note">Create an activity type first.</span>';
+}
+document.getElementById('openCreateProgramBtn').addEventListener('click', ()=>{
+  document.getElementById('newProgramName').value='';
+  document.getElementById('programMsg').textContent='';
+  renderNewProgramActivityChecks();
+  openModal('createProgramModal');
+});
+document.getElementById('createProgramBtn').addEventListener('click', async()=>{
+  const msg = document.getElementById('programMsg');
+  const name = document.getElementById('newProgramName').value.trim();
+  const activityTypeIds = [...document.querySelectorAll('#newProgramActs input:checked')].map(c=>Number(c.value));
+  if(!name){ msg.className='msg err'; msg.textContent='Program name is required.'; return; }
+  try{
+    await api('/admin/programs', {method:'POST', body: JSON.stringify({name,activityTypeIds})});
+    closeModal('createProgramModal');
+    await loadPrograms();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+});
 
 async function toggleProgramEditor(programId){
   const editor = document.getElementById('editor-'+programId);
@@ -169,44 +333,42 @@ async function toggleProgramEditor(programId){
   editor.classList.add('show');
   await renderProgramEditor(programId, editor);
 }
-
 async function renderProgramEditor(programId, editor){
   editor.innerHTML = 'Loading…';
   const p = await api(`/admin/programs/${programId}`);
   const linkedIds = new Set(p.activityTypes.map(a=>a.id));
   editor.innerHTML = `
-    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin-bottom:10px">Phases</h3>
+    <h4>Phases</h4>
     <div id="phases-${programId}"></div>
     <div class="phase-row">
-      <div class="field" style="margin-bottom:0"><label>Name</label><input id="pName-${programId}" placeholder="Prep"></div>
-      <div class="field" style="margin-bottom:0"><label>Start date</label><input id="pStart-${programId}" type="date"></div>
-      <div class="field" style="margin-bottom:0"><label>End date</label><input id="pEnd-${programId}" type="date"></div>
+      <div class="field"><label>Name</label><input id="pName-${programId}" placeholder="Prep"></div>
+      <div class="field"><label>Start date</label><input id="pStart-${programId}" type="date"></div>
+      <div class="field"><label>End date</label><input id="pEnd-${programId}" type="date"></div>
       <button class="btn small" id="addPhaseBtn-${programId}">+ Add</button>
     </div>
-    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin:18px 0 10px">Linked activity types</h3>
+    <h4 style="margin-top:22px">Linked activity types</h4>
     <div class="checks" id="linkedActs-${programId}">${activityTypes.map(a=>`
       <label><input type="checkbox" value="${a.id}" ${linkedIds.has(a.id)?'checked':''}> ${escapeHtml(a.label)}</label>
-    `).join('') || '<span class="meta">Create an activity type first.</span>'}</div>
-    <button class="btn small" id="saveActsBtn-${programId}" style="margin-top:10px">Save linked activities</button>
+    `).join('') || '<span class="empty-note">Create an activity type first.</span>'}</div>
+    <button class="btn small" id="saveActsBtn-${programId}" style="margin-top:12px">Save linked activities</button>
     <div class="msg" id="editorMsg-${programId}"></div>
   `;
   renderPhasesList(programId, p.phases);
   document.getElementById(`addPhaseBtn-${programId}`).addEventListener('click', ()=> addPhase(programId));
   document.getElementById(`saveActsBtn-${programId}`).addEventListener('click', ()=> saveLinkedActivityTypes(programId));
 }
-
 function renderPhasesList(programId, phases){
   const wrap = document.getElementById(`phases-${programId}`);
   wrap.innerHTML = phases.map(ph=>`
     <div class="phase-row" data-phase-id="${ph.id}">
-      <div class="field" style="margin-bottom:0"><input value="${escapeHtml(ph.name)}" data-f="name"></div>
-      <div class="field" style="margin-bottom:0"><input type="date" value="${ph.startDate}" data-f="startDate"></div>
-      <div class="field" style="margin-bottom:0"><input type="date" value="${ph.endDate}" data-f="endDate"></div>
+      <div class="field"><input value="${escapeHtml(ph.name)}" data-f="name"></div>
+      <div class="field"><input type="date" value="${ph.startDate}" data-f="startDate"></div>
+      <div class="field"><input type="date" value="${ph.endDate}" data-f="endDate"></div>
       <div style="display:flex; gap:6px">
         <button class="btn small save-phase">save</button>
         <button class="btn small del-phase">delete</button>
       </div>
-    </div>`).join('') || '<div class="meta" style="font-size:11px;margin-bottom:10px">No phases yet.</div>';
+    </div>`).join('') || '<div class="empty-note">No phases yet.</div>';
   wrap.querySelectorAll('.save-phase').forEach(btn=> btn.addEventListener('click', e=>{
     const row = e.target.closest('[data-phase-id]');
     updatePhase(programId, row.dataset.phaseId, {
@@ -220,7 +382,6 @@ function renderPhasesList(programId, phases){
     if(confirm('Delete this phase?')) deletePhase(programId, row.dataset.phaseId);
   }));
 }
-
 async function addPhase(programId){
   const name = document.getElementById(`pName-${programId}`).value.trim();
   const startDate = document.getElementById(`pStart-${programId}`).value;
@@ -254,49 +415,9 @@ async function saveLinkedActivityTypes(programId){
   const activityTypeIds = [...document.querySelectorAll(`#linkedActs-${programId} input:checked`)].map(c=>Number(c.value));
   try{
     await api(`/admin/programs/${programId}/activity-types`, {method:'PUT', body: JSON.stringify({activityTypeIds})});
-    msg.className='msg ok'; msg.textContent='Linked activities saved.';
+    msg.className='msg ok'; msg.textContent='Linked activities saved. (Unlinking never deletes logged workout data — re-linking later restores it.)';
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
-
-document.getElementById('createAthleteBtn').addEventListener('click', async()=>{
-  const msg = document.getElementById('athleteMsg');
-  const username = document.getElementById('newUsername').value.trim();
-  const password = document.getElementById('newPassword').value;
-  const displayName = document.getElementById('newDisplayName').value.trim();
-  const programIds = [...document.querySelectorAll('#newAthletePrograms input:checked')].map(c=>Number(c.value));
-  if(!username||!password||!displayName){ msg.className='msg err'; msg.textContent='Username, password and display name are required.'; return; }
-  try{
-    await api('/admin/athletes', {method:'POST', body: JSON.stringify({username,password,displayName,programIds})});
-    msg.className='msg ok'; msg.textContent='Athlete created.';
-    document.getElementById('newUsername').value=''; document.getElementById('newPassword').value=''; document.getElementById('newDisplayName').value='';
-    await loadAthletes();
-  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
-});
-document.getElementById('createActivityTypeBtn').addEventListener('click', async()=>{
-  const msg = document.getElementById('activityTypeMsg');
-  const key = document.getElementById('newActKey').value.trim();
-  const label = document.getElementById('newActLabel').value.trim();
-  const infoText = document.getElementById('newActInfo').value.trim();
-  const showInRunProgress = document.getElementById('newActRunProgress').checked;
-  if(!key||!label||!infoText){ msg.className='msg err'; msg.textContent='Key, label and explainer text are required.'; return; }
-  try{
-    await api('/admin/activity-types', {method:'POST', body: JSON.stringify({key,label,infoText,showInRunProgress})});
-    msg.className='msg ok'; msg.textContent='Activity type created.';
-    document.getElementById('newActKey').value=''; document.getElementById('newActLabel').value=''; document.getElementById('newActInfo').value=''; document.getElementById('newActRunProgress').checked=false;
-    await loadActivityTypes();
-  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
-});
-document.getElementById('createProgramBtn').addEventListener('click', async()=>{
-  const msg = document.getElementById('programMsg');
-  const name = document.getElementById('newProgramName').value.trim();
-  if(!name){ msg.className='msg err'; msg.textContent='Program name is required.'; return; }
-  try{
-    await api('/admin/programs', {method:'POST', body: JSON.stringify({name})});
-    msg.className='msg ok'; msg.textContent='Program created — link activity types below.';
-    document.getElementById('newProgramName').value='';
-    await loadPrograms();
-  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
-});
 
 (async function init(){
   await loadActivityTypes();

@@ -260,6 +260,8 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 .modal .msub{font-size:11px; color:var(--muted); letter-spacing:0.06em; margin-bottom:18px}
 .field{margin-bottom:14px}
 .field label{display:block; font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); margin-bottom:5px}
+.checkbox-field label{display:flex; align-items:center; gap:7px; font-size:12px; text-transform:none; letter-spacing:0; color:var(--mid); margin-bottom:0}
+.checkbox-field input[type="checkbox"]{width:auto}
 .field input,.field select,.field textarea{width:100%; background:var(--bg); border:0.5px solid var(--cardborder); color:var(--ink); font-family:"Space Grotesk"; font-size:13px; padding:9px 11px; border-radius:5px; outline:none}
 .field textarea{resize:vertical; min-height:66px; line-height:1.5; color:var(--mid)}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
@@ -449,7 +451,6 @@ async function fetchMe(){
 let ACTIVITIES = [];      // [{key,label}]
 let ACT_MAP = {};         // key -> label
 let ACT_INFO = {};        // key -> explainer text
-let RUN_PROGRESS_KEYS = [];  // keys flagged "Add to Run Progress Analytics"
 const ACT_SHORT = {zone2:'Zone 2', runIntervals:'Run int.', exerciseIntervals:'Hybrid int.', strength:'Strength', mobility:'Mobility'};
 
 /* ---------------- PHOTOS (Cloudinary, same account as training-dashboard-v2) ---------------- */
@@ -848,6 +849,10 @@ function renderModalFields(ex){
     </div>
   </div>`;
   flds.forEach(f=>{ const val=ex&&ex.values[f.k]!=null?escapeHtml(String(ex.values[f.k])):''; html+=`<div class="field"><label>${f.label}</label><input type="${f.type}" data-f="${f.k}" placeholder="${f.ph||''}" value="${val}" ${f.type==='number'?'step="any"':''}></div>`; });
+  if(type==='zone2'){
+    const checked=!ex||ex.values.includeInRunProgress!==false;
+    html+=`<div class="field checkbox-field"><label><input type="checkbox" data-f="includeInRunProgress" ${checked?'checked':''}> Include in Run Progress Analytics</label></div>`;
+  }
   mFields.innerHTML=html;
   mFields.querySelectorAll('.date-quick').forEach(btn=> btn.addEventListener('click',()=>{
     const d=new Date(); d.setDate(d.getDate()+Number(btn.dataset.days));
@@ -873,7 +878,7 @@ overlay.addEventListener('click',e=>{ if(e.target===overlay)closeModal(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&overlay.classList.contains('show'))closeModal(); });
 document.getElementById('mSave').addEventListener('click',()=>{
   const type=mType.value, values={};
-  mFields.querySelectorAll('[data-f]').forEach(inp=> values[inp.dataset.f]=inp.value.trim());
+  mFields.querySelectorAll('[data-f]').forEach(inp=> values[inp.dataset.f]=inp.type==='checkbox'?inp.checked:inp.value.trim());
   const wk=state.weeks[editing.wid];
   if(editing.id){ const wo=wk.workouts.find(w=>w.id===editing.id); wo.type=type; wo.values=values; wo.review=editing.review; wo.details=mDetails.value; }
   else{ wk.workouts.push({id:'wo_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), type, values, review:editing.review, details:mDetails.value}); }
@@ -908,7 +913,7 @@ function renderAnalytics(){
       <div class="abar"><i style="width:${Math.min(p,100)}%"></i></div>
       <div class="wr">${w.done}/${w.target}</div></div>`;
   }).join('');
-  const hasRunProgress = RUN_PROGRESS_KEYS.length>0;
+  const hasRunProgress = ACTIVITIES.some(a=>a.key==='zone2');
   document.getElementById('analytics').innerHTML=`
     <div class="an-head"><span class="phase-rule"></span><span class="an-title">Program Leaderboard</span></div>
     <div id="leaderboardSection"><div class="lb-empty">Loading…</div></div>
@@ -1014,7 +1019,7 @@ function wireRunProgressControls(){
 function getRunProgressActivities(){
   const activities=[];
   WEEKS.forEach(w=>{
-    (state.weeks[w.id].workouts||[]).forEach(x=>{ if(RUN_PROGRESS_KEYS.includes(x.type)) activities.push(x); });
+    (state.weeks[w.id].workouts||[]).forEach(x=>{ if(x.type==='zone2' && x.values.includeInRunProgress!==false) activities.push(x); });
   });
   activities.sort((a,b)=>{ const da=a.values.date||'', db=b.values.date||''; return da<db?-1:da>db?1:0; });
   return activities;
@@ -1138,7 +1143,6 @@ async function loadProgram(programId){
   ACTIVITIES = cfg.activityTypes.map(a=>({key:a.key,label:a.label}));
   ACT_MAP = Object.fromEntries(ACTIVITIES.map(a=>[a.key,a.label]));
   ACT_INFO = Object.fromEntries(cfg.activityTypes.map(a=>[a.key,a.infoText]));
-  RUN_PROGRESS_KEYS = cfg.activityTypes.filter(a=>a.showInRunProgress).map(a=>a.key);
   populateActivitySelect();
   deriveWeeks(cfg.phases);
   const programName = (programsList.find(p=>String(p.id)===activeProgramId)||{}).name || 'Training plan';

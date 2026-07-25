@@ -12,14 +12,16 @@
 // Admin routes (no auth check — protected only by the URL being unlisted, by design):
 //   GET  /admin/athletes                 POST /admin/athletes {username,password,displayName,programIds}
 //   PUT  /admin/athletes/:id/programs     {programIds}
-//   GET  /admin/programs                 POST /admin/programs {name}
+//   PUT  /admin/athletes/:id/password     {password}
+//   DELETE /admin/athletes/:id
+//   GET  /admin/programs                 POST /admin/programs {name, activityTypeIds}
 //   GET  /admin/programs/:id
 //   POST /admin/programs/:id/phases       {name,startDate,endDate}
 //   PUT  /admin/programs/:id/phases/:phaseId   {name,startDate,endDate}
 //   DELETE /admin/programs/:id/phases/:phaseId
-//   PUT  /admin/programs/:id/activity-types   {activityTypeIds:[...]}  (replaces linked set)
-//   GET  /admin/activity-types           POST /admin/activity-types {key,label,infoText,showInRunProgress}
-//   PUT  /admin/activity-types/:key      {label,infoText,showInRunProgress}
+//   PUT  /admin/programs/:id/activity-types   {activityTypeIds:[...]}  (replaces linked set; never touches program_state)
+//   GET  /admin/activity-types           POST /admin/activity-types {key,label,infoText}
+//   PUT  /admin/activity-types/:key      {label,infoText}
 
 const ALLOWED_ORIGIN = 'https://daviddamjakob-claude.github.io';
 
@@ -97,7 +99,9 @@ function parseHM(v) {
   if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
   return NaN;
 }
-function sumWeeks(weeks, stateData, runProgressKeys) {
+// "Zone 2 Time" always means time logged specifically under the built-in 'zone2' activity key —
+// independent of the per-workout "include in Run Progress chart" checkbox, which only controls the chart.
+function sumWeeks(weeks, stateData) {
   let sessions = 0, target = 0, zone2Minutes = 0;
   weeks.forEach(w => {
     const wk = stateData && stateData.weeks && stateData.weeks[w.id];
@@ -105,7 +109,7 @@ function sumWeeks(weeks, stateData, runProgressKeys) {
     const workouts = wk.workouts || [];
     sessions += workouts.length;
     workouts.forEach(x => {
-      if (runProgressKeys.includes(x.type)) {
+      if (x.type === 'zone2') {
         const mins = parseHM(x.values && x.values.time);
         if (!isNaN(mins)) zone2Minutes += mins;
       }
@@ -114,16 +118,16 @@ function sumWeeks(weeks, stateData, runProgressKeys) {
   });
   return { sessions, target, zone2Minutes: Math.round(zone2Minutes), completionPct: target > 0 ? Math.round(sessions / target * 100) : 0 };
 }
-function computeAthleteStats(weeks, stateData, runProgressKeys) {
+function computeAthleteStats(weeks, stateData) {
   const todayISO = isoDate(new Date());
   const currentWeek = weeks.find(w => weekStatusOf(w, todayISO) === 'current');
   const nonFutureWeeks = weeks.filter(w => weekStatusOf(w, todayISO) !== 'future');
   const currentWaveName = currentWeek ? currentWeek.phaseName : null;
   const waveWeeks = currentWaveName ? nonFutureWeeks.filter(w => w.phaseName === currentWaveName) : [];
   return {
-    currentWeek: currentWeek ? sumWeeks([currentWeek], stateData, runProgressKeys) : { sessions: 0, target: 0, zone2Minutes: 0, completionPct: 0 },
-    currentWave: { ...sumWeeks(waveWeeks, stateData, runProgressKeys), waveName: currentWaveName },
-    program: sumWeeks(nonFutureWeeks, stateData, runProgressKeys),
+    currentWeek: currentWeek ? sumWeeks([currentWeek], stateData) : { sessions: 0, target: 0, zone2Minutes: 0, completionPct: 0 },
+    currentWave: { ...sumWeeks(waveWeeks, stateData), waveName: currentWaveName },
+    program: sumWeeks(nonFutureWeeks, stateData),
   };
 }
 
@@ -159,9 +163,9 @@ async function handleProgramConfig(request, env, cors, programId) {
   if (!(await athleteHasProgram(env, athleteId, programId))) return json({ error: 'Forbidden' }, 403, cors);
   const phases = await env.DB.prepare('SELECT id, name, start_date AS startDate, end_date AS endDate FROM phases WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
   const activityTypes = await env.DB.prepare(
-    'SELECT a.key, a.label, a.info_text AS infoText, a.show_in_run_progress AS showInRunProgress FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? ORDER BY pat.sort_order'
+    'SELECT a.key, a.label, a.info_text AS infoText FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? ORDER BY pat.sort_order'
   ).bind(programId).all();
-  return json({ phases: phases.results, activityTypes: activityTypes.results.map(r => ({ ...r, showInRunProgress: !!r.showInRunProgress })) }, 200, cors);
+  return json({ phases: phases.results, activityTypes: activityTypes.results }, 200, cors);
 }
 async function handleStateGet(request, env, cors, programId) {
   const athleteId = await requireAthlete(request, env);
@@ -188,10 +192,6 @@ async function handleLeaderboard(request, env, cors, programId) {
   if (!(await athleteHasProgram(env, athleteId, programId))) return json({ error: 'Forbidden' }, 403, cors);
   const phasesRes = await env.DB.prepare('SELECT name, start_date AS startDate, end_date AS endDate FROM phases WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
   const weeks = deriveWeeksWithIds(phasesRes.results);
-  const runProgressRes = await env.DB.prepare(
-    'SELECT a.key FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? AND a.show_in_run_progress = 1'
-  ).bind(programId).all();
-  const runProgressKeys = runProgressRes.results.map(r => r.key);
   const linked = await env.DB.prepare(
     'SELECT a.id, a.display_name AS displayName FROM athletes a JOIN athlete_programs ap ON ap.athlete_id = a.id WHERE ap.program_id = ? ORDER BY a.id'
   ).bind(programId).all();
@@ -199,7 +199,7 @@ async function handleLeaderboard(request, env, cors, programId) {
   for (const a of linked.results) {
     const stateRow = await env.DB.prepare('SELECT data FROM program_state WHERE athlete_id = ? AND program_id = ?').bind(a.id, programId).first();
     const stateData = stateRow ? JSON.parse(stateRow.data) : null;
-    athletes.push({ athleteId: a.id, displayName: a.displayName, ...computeAthleteStats(weeks, stateData, runProgressKeys) });
+    athletes.push({ athleteId: a.id, displayName: a.displayName, ...computeAthleteStats(weeks, stateData) });
   }
   return json({ athletes }, 200, cors);
 }
@@ -235,6 +235,22 @@ async function adminUpdateAthletePrograms(request, env, cors, athleteId) {
   }
   return json({ ok: true }, 200, cors);
 }
+async function adminUpdateAthletePassword(request, env, cors, athleteId) {
+  const body = await readJson(request);
+  if (!body || !body.password) return json({ error: 'password required' }, 400, cors);
+  const { hash, salt } = await hashNewPassword(body.password);
+  await env.DB.prepare('UPDATE athletes SET password_hash = ?, salt = ? WHERE id = ?').bind(hash, salt, athleteId).run();
+  // Force re-login everywhere the password changed, since old sessions were issued under the old password.
+  await env.DB.prepare('DELETE FROM sessions WHERE athlete_id = ?').bind(athleteId).run();
+  return json({ ok: true }, 200, cors);
+}
+async function adminDeleteAthlete(env, cors, athleteId) {
+  await env.DB.prepare('DELETE FROM sessions WHERE athlete_id = ?').bind(athleteId).run();
+  await env.DB.prepare('DELETE FROM program_state WHERE athlete_id = ?').bind(athleteId).run();
+  await env.DB.prepare('DELETE FROM athlete_programs WHERE athlete_id = ?').bind(athleteId).run();
+  await env.DB.prepare('DELETE FROM athletes WHERE id = ?').bind(athleteId).run();
+  return json({ ok: true }, 200, cors);
+}
 async function adminListPrograms(env, cors) {
   const programs = await env.DB.prepare('SELECT id, name FROM programs ORDER BY id').all();
   return json(programs.results, 200, cors);
@@ -243,16 +259,21 @@ async function adminCreateProgram(request, env, cors) {
   const body = await readJson(request);
   if (!body || !body.name) return json({ error: 'name required' }, 400, cors);
   const result = await env.DB.prepare('INSERT INTO programs (name) VALUES (?)').bind(body.name).run();
-  return json({ id: result.meta.last_row_id }, 201, cors);
+  const programId = result.meta.last_row_id;
+  let order = 0;
+  for (const activityTypeId of (body.activityTypeIds || [])) {
+    await env.DB.prepare('INSERT INTO program_activity_types (program_id, activity_type_id, sort_order) VALUES (?, ?, ?)').bind(programId, activityTypeId, order++).run();
+  }
+  return json({ id: programId }, 201, cors);
 }
 async function adminGetProgram(env, cors, programId) {
   const program = await env.DB.prepare('SELECT id, name FROM programs WHERE id = ?').bind(programId).first();
   if (!program) return json({ error: 'Not found' }, 404, cors);
   const phases = await env.DB.prepare('SELECT id, name, start_date AS startDate, end_date AS endDate FROM phases WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
   const activityTypes = await env.DB.prepare(
-    'SELECT a.id, a.key, a.label, a.info_text AS infoText, a.show_in_run_progress AS showInRunProgress FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? ORDER BY pat.sort_order'
+    'SELECT a.id, a.key, a.label, a.info_text AS infoText FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? ORDER BY pat.sort_order'
   ).bind(programId).all();
-  return json({ ...program, phases: phases.results, activityTypes: activityTypes.results.map(r => ({ ...r, showInRunProgress: !!r.showInRunProgress })) }, 200, cors);
+  return json({ ...program, phases: phases.results, activityTypes: activityTypes.results }, 200, cors);
 }
 async function adminCreatePhase(request, env, cors, programId) {
   const body = await readJson(request);
@@ -272,6 +293,8 @@ async function adminDeletePhase(env, cors, phaseId) {
   await env.DB.prepare('DELETE FROM phases WHERE id = ?').bind(phaseId).run();
   return json({ ok: true }, 200, cors);
 }
+// Only ever touches the program<->activity-type link table — program_state (logged workout data)
+// is never read or written here, so unlinking (and re-linking later) never loses any history.
 async function adminUpdateProgramActivityTypes(request, env, cors, programId) {
   const body = await readJson(request);
   if (!body || !Array.isArray(body.activityTypeIds)) return json({ error: 'activityTypeIds array required' }, 400, cors);
@@ -283,16 +306,16 @@ async function adminUpdateProgramActivityTypes(request, env, cors, programId) {
   return json({ ok: true }, 200, cors);
 }
 async function adminListActivityTypes(env, cors) {
-  const rows = await env.DB.prepare('SELECT id, key, label, info_text AS infoText, show_in_run_progress AS showInRunProgress FROM activity_types ORDER BY id').all();
-  return json(rows.results.map(r => ({ ...r, showInRunProgress: !!r.showInRunProgress })), 200, cors);
+  const rows = await env.DB.prepare('SELECT id, key, label, info_text AS infoText FROM activity_types ORDER BY id').all();
+  return json(rows.results, 200, cors);
 }
 async function adminCreateActivityType(request, env, cors) {
   const body = await readJson(request);
   if (!body || !body.key || !body.label || !body.infoText) return json({ error: 'key, label, infoText required' }, 400, cors);
   if (!/^[a-zA-Z0-9_]+$/.test(body.key)) return json({ error: 'key must contain only letters, numbers and underscores' }, 400, cors);
   try {
-    const result = await env.DB.prepare('INSERT INTO activity_types (key, label, info_text, show_in_run_progress) VALUES (?, ?, ?, ?)')
-      .bind(body.key, body.label, body.infoText, body.showInRunProgress ? 1 : 0).run();
+    const result = await env.DB.prepare('INSERT INTO activity_types (key, label, info_text) VALUES (?, ?, ?)')
+      .bind(body.key, body.label, body.infoText).run();
     return json({ id: result.meta.last_row_id }, 201, cors);
   } catch (err) {
     return json({ error: 'That key already exists' }, 400, cors);
@@ -301,8 +324,8 @@ async function adminCreateActivityType(request, env, cors) {
 async function adminUpdateActivityType(request, env, cors, key) {
   const body = await readJson(request);
   if (!body || !body.label || !body.infoText) return json({ error: 'label, infoText required' }, 400, cors);
-  await env.DB.prepare('UPDATE activity_types SET label = ?, info_text = ?, show_in_run_progress = ? WHERE key = ?')
-    .bind(body.label, body.infoText, body.showInRunProgress ? 1 : 0, key).run();
+  await env.DB.prepare('UPDATE activity_types SET label = ?, info_text = ? WHERE key = ?')
+    .bind(body.label, body.infoText, key).run();
   return json({ ok: true }, 200, cors);
 }
 
@@ -329,6 +352,8 @@ export default {
       if (seg[0] === 'admin' && seg[1] === 'athletes' && !seg[2] && method === 'GET') return adminListAthletes(env, cors);
       if (seg[0] === 'admin' && seg[1] === 'athletes' && !seg[2] && method === 'POST') return adminCreateAthlete(request, env, cors);
       if (seg[0] === 'admin' && seg[1] === 'athletes' && seg[3] === 'programs' && method === 'PUT') return adminUpdateAthletePrograms(request, env, cors, seg[2]);
+      if (seg[0] === 'admin' && seg[1] === 'athletes' && seg[3] === 'password' && method === 'PUT') return adminUpdateAthletePassword(request, env, cors, seg[2]);
+      if (seg[0] === 'admin' && seg[1] === 'athletes' && seg[2] && !seg[3] && method === 'DELETE') return adminDeleteAthlete(env, cors, seg[2]);
 
       if (seg[0] === 'admin' && seg[1] === 'programs' && !seg[2] && method === 'GET') return adminListPrograms(env, cors);
       if (seg[0] === 'admin' && seg[1] === 'programs' && !seg[2] && method === 'POST') return adminCreateProgram(request, env, cors);
