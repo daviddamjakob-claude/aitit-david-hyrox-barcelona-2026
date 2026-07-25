@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Training OS by aitit</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>Training OS by aitit — Preview</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -338,19 +338,7 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 }
 </style>
 </head>
-<body class="pre-login">
-
-<!-- login screen -->
-<div class="login-screen" id="loginScreen">
-  <div class="login-card">
-    <div class="logo"><span class="mark">aitit</span><span class="name">all it takes is training</span></div>
-    <h3>Log in</h3>
-    <div class="field"><label>Username</label><input id="loginUsername" type="text" autocomplete="username"></div>
-    <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
-    <div class="login-error" id="loginError"></div>
-    <button class="btn mint" id="loginSubmit" style="width:100%">Log in</button>
-  </div>
-</div>
+<body>
 
 <header class="topbar">
   <div class="brandrow">
@@ -360,21 +348,7 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
       <input class="plan-target" id="planTarget" value="">
     </div>
     <div class="controls">
-      <span class="saved" id="savedFlag">saved</span>
-      <div class="user-menu-wrap">
-        <button class="user-icon-btn" id="userMenuBtn" aria-label="Account menu">?</button>
-        <div class="user-menu" id="userMenu">
-          <div class="user-menu-section">
-            <div class="user-menu-heading">Athlete</div>
-            <div id="userMenuAthlete"></div>
-          </div>
-          <div class="user-menu-section">
-            <div class="user-menu-heading">Training Programs</div>
-            <div id="userMenuPrograms"></div>
-            <div class="user-menu-hint">Reach out to David to unlock a new training program</div>
-          </div>
-        </div>
-      </div>
+      <button class="btn mint" id="requestAccountBtn">Request Account</button>
     </div>
   </div>
   <nav class="tabs">
@@ -397,24 +371,13 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
   </div>
 </section>
 
-<!-- workout modal -->
+<!-- request account popup -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <h3 id="modalTitle">add workout</h3>
-    <div class="msub" id="modalSub"></div>
-    <div class="field"><label>activity type</label><select id="mType"></select></div>
-    <div id="mFields"></div>
-    <div class="field"><label>review</label>
-      <div class="review-chips" id="mReview">
-        <button class="chip" data-r="great">great session</button>
-        <button class="chip" data-r="good">good session</button>
-        <button class="chip" data-r="meh">not so happy about the session</button>
-      </div>
-    </div>
-    <div class="field"><label>details</label><textarea id="mDetails" placeholder="notes on the session…"></textarea></div>
+    <h3>Request Account</h3>
+    <p style="font-size:13px; line-height:1.6; color:var(--mid); margin-top:10px">Please send an email with brief context about your training ambition to <strong>david.damjakob@gmail.com</strong></p>
     <div class="modal-actions">
-      <button class="btn" id="mCancel">cancel</button>
-      <button class="btn mint" id="mSave">save workout</button>
+      <button class="btn mint" id="mCancel">Close</button>
     </div>
   </div>
 </div>
@@ -427,44 +390,18 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
       <button id="lbPrev">‹ prev</button>
       <span class="lightbox-count" id="lbCount"></span>
       <button id="lbNext">next ›</button>
-      <button class="lb-del" id="lbDelete">delete</button>
       <button id="lbClose">close</button>
     </div>
   </div>
 </div>
-<input type="file" id="photoFileInput" accept="image/*" multiple style="display:none">
 
 <script>
-/* ---------------- API / AUTH ---------------- */
+/* ---------------- API (public, read-only) ---------------- */
 const API_BASE = 'https://aitit-training-os.david-damjakob.workers.dev';
-const SESSION_KEY = 'aitit_session_v1';
-const ACTIVE_PROGRAM_KEY = 'aitit_active_program_v1';
+const activeProgramId = 'view-only'; // display-only label; the public endpoints are hardcoded server-side
 
-let session = null;       // {token, athleteId, displayName}
-let programsList = [];    // [{id,name}]
-let activeProgramId = null;
-
-function loadSession(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)); }catch(e){ return null; } }
-function saveSession(s){ session=s; try{ localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }catch(e){} }
-function clearSession(){ session=null; try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
-
-async function apiFetch(path, opts){
-  opts = opts || {};
-  const headers = Object.assign({}, opts.headers||{});
-  if(session) headers['X-Session-Token']=session.token;
-  return fetch(API_BASE+path, Object.assign({}, opts, {headers}));
-}
-async function doLogin(username,password){
-  const res = await fetch(API_BASE+'/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
-  const data = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(data.error || 'Login failed');
-  saveSession({token:data.token, athleteId:data.athleteId, displayName:data.displayName});
-  return data;
-}
-async function fetchMe(){
-  const res = await apiFetch('/me');
-  if(!res.ok) throw new Error('unauthorized');
-  return res.json();
+async function publicFetch(path){
+  return fetch(API_BASE+'/public/hyrox'+path);
 }
 
 /* ---------------- CONFIG (populated per program after login) ---------------- */
@@ -472,11 +409,6 @@ let ACTIVITIES = [];      // [{key,label}]
 let ACT_MAP = {};         // key -> label
 let ACT_INFO = {};        // key -> explainer text
 const ACT_SHORT = {zone2:'Zone 2', runIntervals:'Run int.', exerciseIntervals:'Hybrid int.', strength:'Strength', mobility:'Mobility'};
-
-/* ---------------- PHOTOS (Cloudinary, same account as training-dashboard-v2) ---------------- */
-const CLOUDINARY_CLOUD = 'dglx8phdf';
-const CLOUDINARY_PRESET = 'claude_strava_dashboard';
-const CLOUDINARY_TAG = 'aitit-hyrox'; // tags uploads from this app, since the account is shared with training-dashboard-v2
 
 const FIELDS = {
   zone2:[
@@ -552,10 +484,7 @@ function weekStatus(w){
   return 'current';
 }
 
-/* ---------------- STATE (per athlete + program) ---------------- */
-let memoryOnly = false;
-function storeKey(){ return 'aitit_state_v3_'+activeProgramId; }
-
+/* ---------------- STATE (read-only, loaded once from the public endpoints) ---------------- */
 function newState(defaultTitle){
   const weeks = {};
   WEEKS.forEach(w=>{ const t={}; ACTIVITIES.forEach(a=> t[a.key]={planned:0,comment:''}); weeks[w.id]={targets:t,review:'',workouts:[]}; });
@@ -575,42 +504,8 @@ function migrate(s){
   });
   return base;
 }
-function loadLocal(){ try{ const raw=localStorage.getItem(storeKey()); return raw? migrate(JSON.parse(raw)) : null; }catch(e){ return null; } }
 let state = null;
-
-let saveTimer;
-function save(){
-  if(!memoryOnly){
-    try{ localStorage.setItem(storeKey(), JSON.stringify(state)); }
-    catch(e){ memoryOnly=true; }
-  }
-  flagSaved(memoryOnly ? 'memory only' : 'saved');
-  pushRemote();
-}
-function flagSaved(txt){ const el=document.getElementById('savedFlag'); el.textContent=txt; el.classList.add('show'); clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove('show'),1200); }
-
-let pushTimer;
-function pushRemote(){
-  clearTimeout(pushTimer);
-  pushTimer=setTimeout(()=>{
-    apiFetch(`/program/${activeProgramId}/state`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)})
-      .then(res=>{ flagSaved(res.ok?'synced':'sync error'); })
-      .catch(()=> flagSaved('offline'));
-  },800);
-}
-async function pullRemote(){
-  try{
-    const res=await apiFetch(`/program/${activeProgramId}/state`);
-    if(!res.ok) throw new Error('state GET failed: '+res.status);
-    const data=await res.json();
-    if(data) state=migrate(data);
-    try{ localStorage.setItem(storeKey(), JSON.stringify(state)); }catch(e){}
-    titleInput.value=state.title; targetInput.value=state.target;
-    buildBoard();
-    if(document.getElementById('panel-analytics').classList.contains('active')) renderAnalytics();
-    flagSaved('synced');
-  }catch(e){ flagSaved('offline'); }
-}
+function save(){} // view-only: no input operations exist, so nothing ever calls this — kept as a harmless no-op
 
 /* ---------------- BOARD ---------------- */
 const board = document.getElementById('board');
@@ -678,14 +573,9 @@ function buildColumn(w, idx){
     row.innerHTML=`
       <div class="trow-top">
         <span class="act-name">${escapeHtml(a.label)}<span class="info-tip" tabindex="0">ⓘ<span class="info-pop">${escapeHtml(ACT_INFO[a.key]||'')}</span></span></span>
-        <div class="stepper">
-          <span class="done" data-done="${a.key}">0/${t.planned}</span>
-          <button data-step="dec" data-act="${a.key}">–</button>
-          <input class="num" type="number" min="0" step="1" data-num="${a.key}" value="${t.planned}">
-          <button data-step="inc" data-act="${a.key}">+</button>
-        </div>
+        <span class="done" data-done="${a.key}">0/${t.planned}</span>
       </div>
-      <textarea class="plan-input" data-plan="${a.key}" placeholder="plan for ${escapeHtml(a.label.toLowerCase())}…">${escapeHtml(t.comment)}</textarea>`;
+      ${t.comment?`<div class="plan-input" style="cursor:default">${escapeHtml(t.comment)}</div>`:''}`;
     tCard.appendChild(row);
   });
 
@@ -696,27 +586,12 @@ function buildColumn(w, idx){
     <div class="bar"><i data-bar></i></div>
     <div class="pct" data-pct>0% of target</div>
     <div class="breakdown" data-breakdown></div>
-    <textarea class="plan-input" style="min-height:56px" data-review placeholder="personal notes…">${escapeHtml(state.weeks[w.id].review)}</textarea>`;
+    ${state.weeks[w.id].review?`<div class="plan-input" style="min-height:auto; cursor:default">${escapeHtml(state.weeks[w.id].review)}</div>`:''}`;
   col.appendChild(sCard);
   col.appendChild(tCard);
 
-  const addBtn=el('button','add-btn'); addBtn.textContent='+ add workout';
-  addBtn.addEventListener('click',()=>openModal(w.id,null));
-  col.appendChild(addBtn);
-
   const wrap=el('div','workouts'); wrap.dataset.workouts=w.id; col.appendChild(wrap);
 
-  tCard.querySelectorAll('[data-num]').forEach(inp=> inp.addEventListener('input',()=>{
-    let v=parseInt(inp.value,10); if(isNaN(v)||v<0)v=0;
-    state.weeks[w.id].targets[inp.dataset.num].planned=v; save(); updateSummary(w.id);
-  }));
-  tCard.querySelectorAll('[data-step]').forEach(btn=> btn.addEventListener('click',()=>{
-    const key=btn.dataset.act, t=state.weeks[w.id].targets[key];
-    t.planned=Math.max(0,t.planned+(btn.dataset.step==='inc'?1:-1));
-    tCard.querySelector(`[data-num="${key}"]`).value=t.planned; save(); updateSummary(w.id);
-  }));
-  tCard.querySelectorAll('[data-plan]').forEach(ta=> ta.addEventListener('input',()=>{ state.weeks[w.id].targets[ta.dataset.plan].comment=ta.value; save(); }));
-  sCard.querySelector('[data-review]').addEventListener('input',e=>{ state.weeks[w.id].review=e.target.value; save(); });
   return col;
 }
 
@@ -754,20 +629,12 @@ function workoutCard(wid,x){
   const dets=x.details?`<div class="wdetails">${escapeHtml(x.details)}</div>`:'';
   c.innerHTML=`<div class="wcard-top"><span class="wtag">${escapeHtml(ACT_MAP[x.type]||x.type)}</span><span class="wdate">${dt}</span></div>
     ${mk?`<div class="wmetrics">${mk}</div>`:''}${rv}${dets}
-    <div class="wphotos" data-photos-strip></div>
-    <div class="wactions"><button data-photos>add photos</button><button data-edit>edit</button><button class="del" data-del>delete</button></div>`;
+    <div class="wphotos" data-photos-strip></div>`;
   renderPhotoStrip(c.querySelector('[data-photos-strip]'), wid, x.id);
-  c.querySelector('[data-photos]').addEventListener('click',()=>openPhotoPicker(wid,x.id));
-  c.querySelector('[data-edit]').addEventListener('click',()=>openModal(wid,x.id));
-  c.querySelector('[data-del]').addEventListener('click',()=>{
-    if(!confirm('Delete this workout?'))return;
-    state.weeks[wid].workouts=state.weeks[wid].workouts.filter(w=>w.id!==x.id);
-    save(); renderWorkouts(wid); updateSummary(wid);
-  });
   return c;
 }
 
-/* ---------------- PHOTOS ---------------- */
+/* ---------------- PHOTOS (view-only: display existing photos, no upload) ---------------- */
 function findWorkout(wid,id){ return state.weeks[wid].workouts.find(w=>w.id===id); }
 function renderPhotoStrip(stripEl,wid,id){
   const wo=findWorkout(wid,id); if(!wo)return;
@@ -776,41 +643,7 @@ function renderPhotoStrip(stripEl,wid,id){
   stripEl.querySelectorAll('img').forEach(img=> img.addEventListener('click',()=> openLightbox(wid,id,Number(img.dataset.photoIdx))));
 }
 
-let photoUploadTarget=null;
-const photoFileInput=document.getElementById('photoFileInput');
-function openPhotoPicker(wid,id){ photoUploadTarget={wid,id}; photoFileInput.value=''; photoFileInput.click(); }
-photoFileInput.addEventListener('change',async()=>{
-  const files=[...photoFileInput.files]; const target=photoUploadTarget;
-  if(!files.length||!target)return;
-  const wo=findWorkout(target.wid,target.id); if(!wo)return;
-  if(!wo.photos)wo.photos=[];
-  for(const file of files){
-    flagSaved('uploading…');
-    try{
-      const res=await uploadPhotoFile(file);
-      wo.photos.push({public_id:res.public_id, secure_url:res.secure_url});
-      save();
-      renderWorkouts(target.wid);
-    }catch(e){
-      flagSaved('upload failed');
-    }
-  }
-});
-function uploadPhotoFile(file){
-  return new Promise((resolve,reject)=>{
-    const xhr=new XMLHttpRequest();
-    const fd=new FormData();
-    fd.append('file',file);
-    fd.append('upload_preset',CLOUDINARY_PRESET);
-    fd.append('tags',CLOUDINARY_TAG);
-    xhr.onload=()=>{ if(xhr.status===200) resolve(JSON.parse(xhr.responseText)); else reject(new Error('Upload failed '+xhr.status)); };
-    xhr.onerror=()=>reject(new Error('Network error'));
-    xhr.open('POST',`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`);
-    xhr.send(fd);
-  });
-}
-
-/* ---------------- LIGHTBOX ---------------- */
+/* ---------------- LIGHTBOX (view-only: no delete) ---------------- */
 const lightbox=document.getElementById('lightbox'), lbImg=document.getElementById('lbImg'), lbCount=document.getElementById('lbCount');
 let lbState={wid:null,id:null,idx:0};
 function openLightbox(wid,id,idx){ lbState={wid,id,idx}; showLightbox(); lightbox.classList.add('show'); }
@@ -825,13 +658,6 @@ function showLightbox(){
 document.getElementById('lbPrev').addEventListener('click',()=>{ lbState.idx--; showLightbox(); });
 document.getElementById('lbNext').addEventListener('click',()=>{ lbState.idx++; showLightbox(); });
 document.getElementById('lbClose').addEventListener('click',closeLightbox);
-document.getElementById('lbDelete').addEventListener('click',()=>{
-  const wo=findWorkout(lbState.wid,lbState.id); if(!wo||!wo.photos)return;
-  if(!confirm('Delete this photo?'))return;
-  wo.photos.splice(lbState.idx,1);
-  save(); renderWorkouts(lbState.wid);
-  if(wo.photos.length) showLightbox(); else closeLightbox();
-});
 lightbox.addEventListener('click',e=>{ if(e.target===lightbox)closeLightbox(); });
 document.addEventListener('keydown',e=>{
   if(!lightbox.classList.contains('show'))return;
@@ -840,70 +666,12 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'){ lbState.idx++; showLightbox(); }
 });
 
-/* ---------------- MODAL ---------------- */
-const overlay=document.getElementById('overlay'), mType=document.getElementById('mType'),
-      mFields=document.getElementById('mFields'), mDetails=document.getElementById('mDetails'), mReview=document.getElementById('mReview');
-let editing={wid:null,id:null,review:''};
-function populateActivitySelect(){
-  mType.innerHTML='';
-  ACTIVITIES.forEach(a=>{ const o=document.createElement('option'); o.value=a.key; o.textContent=a.label; mType.appendChild(o); });
-}
-function openModal(wid,id){
-  editing={wid,id,review:''};
-  const ex=id?state.weeks[wid].workouts.find(w=>w.id===id):null;
-  const wm=WEEKS.find(w=>w.id===wid);
-  document.getElementById('modalTitle').textContent=ex?'edit workout':'add workout';
-  document.getElementById('modalSub').textContent=`Week ${wm.num} · ${wm.range[0]} – ${wm.range[1]}`;
-  mType.value=ex?ex.type:(ACTIVITIES[0]&&ACTIVITIES[0].key);
-  renderModalFields(ex); mDetails.value=ex?(ex.details||''):''; editing.review=ex?(ex.review||''):''; paintReview();
-  overlay.classList.add('show');
-}
-function closeModal(){ overlay.classList.remove('show'); }
-function renderModalFields(ex){
-  const type=mType.value, flds=FIELDS[type]||[];
-  let html=`<div class="field"><label>Date</label>
-    <input type="date" data-f="date" value="${ex&&ex.values.date?ex.values.date:''}">
-    <div class="date-toggle">
-      <button type="button" class="date-quick" data-days="0">Today</button>
-      <button type="button" class="date-quick" data-days="-1">Yesterday</button>
-    </div>
-  </div>`;
-  flds.forEach(f=>{ const val=ex&&ex.values[f.k]!=null?escapeHtml(String(ex.values[f.k])):''; html+=`<div class="field"><label>${f.label}</label><input type="${f.type}" data-f="${f.k}" placeholder="${f.ph||''}" value="${val}" ${f.type==='number'?'step="any"':''}></div>`; });
-  if(type==='zone2'){
-    const checked=!ex||ex.values.includeInRunProgress!==false;
-    html+=`<div class="field checkbox-field"><label><input type="checkbox" data-f="includeInRunProgress" ${checked?'checked':''}> Include in Run Progress Analytics</label></div>`;
-  }
-  mFields.innerHTML=html;
-  mFields.querySelectorAll('.date-quick').forEach(btn=> btn.addEventListener('click',()=>{
-    const d=new Date(); d.setDate(d.getDate()+Number(btn.dataset.days));
-    mFields.querySelector('[data-f="date"]').value=isoDate(d);
-    updateDateToggleActive();
-  }));
-  mFields.querySelector('[data-f="date"]').addEventListener('input', updateDateToggleActive);
-  updateDateToggleActive();
-}
-function updateDateToggleActive(){
-  const dateInput=mFields.querySelector('[data-f="date"]');
-  if(!dateInput) return;
-  const val=dateInput.value, today=isoDate(new Date()), yest=isoDate(new Date(Date.now()-86400000));
-  mFields.querySelectorAll('.date-quick').forEach(btn=>{
-    btn.classList.toggle('active', (btn.dataset.days==='0'&&val===today)||(btn.dataset.days==='-1'&&val===yest));
-  });
-}
-mType.addEventListener('change',()=> renderModalFields(editing.id?state.weeks[editing.wid].workouts.find(w=>w.id===editing.id):null));
-mReview.querySelectorAll('.chip').forEach(ch=> ch.addEventListener('click',()=>{ editing.review=editing.review===ch.dataset.r?'':ch.dataset.r; paintReview(); }));
-function paintReview(){ mReview.querySelectorAll('.chip').forEach(ch=> ch.classList.toggle('sel', ch.dataset.r===editing.review)); }
-document.getElementById('mCancel').addEventListener('click',closeModal);
-overlay.addEventListener('click',e=>{ if(e.target===overlay)closeModal(); });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&overlay.classList.contains('show'))closeModal(); });
-document.getElementById('mSave').addEventListener('click',()=>{
-  const type=mType.value, values={};
-  mFields.querySelectorAll('[data-f]').forEach(inp=> values[inp.dataset.f]=inp.type==='checkbox'?inp.checked:inp.value.trim());
-  const wk=state.weeks[editing.wid];
-  if(editing.id){ const wo=wk.workouts.find(w=>w.id===editing.id); wo.type=type; wo.values=values; wo.review=editing.review; wo.details=mDetails.value; }
-  else{ wk.workouts.push({id:'wo_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), type, values, review:editing.review, details:mDetails.value}); }
-  save(); renderWorkouts(editing.wid); updateSummary(editing.wid); closeModal();
-});
+/* ---------------- REQUEST ACCOUNT POPUP ---------------- */
+const overlay=document.getElementById('overlay');
+document.getElementById('requestAccountBtn').addEventListener('click',()=> overlay.classList.add('show'));
+document.getElementById('mCancel').addEventListener('click',()=> overlay.classList.remove('show'));
+overlay.addEventListener('click',e=>{ if(e.target===overlay) overlay.classList.remove('show'); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&overlay.classList.contains('show')) overlay.classList.remove('show'); });
 
 /* ---------------- ANALYTICS ---------------- */
 function computeStats(){
@@ -962,7 +730,7 @@ async function loadLeaderboard(){
   const section=document.getElementById('leaderboardSection');
   if(!section) return;
   try{
-    const res=await apiFetch(`/program/${activeProgramId}/leaderboard`);
+    const res=await publicFetch('/leaderboard');
     if(!res.ok) throw new Error('leaderboard fetch failed');
     const data=await res.json();
     section.innerHTML=renderLeaderboardHtml(data.athletes||[]);
@@ -1122,120 +890,24 @@ document.querySelectorAll('.tab').forEach(tab=> tab.addEventListener('click',()=
   if(id==='analytics') renderAnalytics();
 }));
 
-/* ---------------- CONTROLS ---------------- */
+/* ---------------- CONTROLS (read-only display) ---------------- */
 const titleInput=document.getElementById('planTitle'), targetInput=document.getElementById('planTarget');
-titleInput.addEventListener('input',()=>{ state.title=titleInput.value; save(); });
-targetInput.addEventListener('input',()=>{ state.target=targetInput.value; save(); });
+titleInput.readOnly = true; targetInput.readOnly = true;
 
-/* ---------------- USER MENU ---------------- */
-const userMenuBtn=document.getElementById('userMenuBtn'), userMenu=document.getElementById('userMenu');
-userMenuBtn.addEventListener('click',e=>{ e.stopPropagation(); userMenu.classList.toggle('show'); });
-document.addEventListener('click',e=>{ if(!userMenu.contains(e.target)&&e.target!==userMenuBtn) userMenu.classList.remove('show'); });
-
-function renderAccountMenu(displayName, programs){
-  userMenuBtn.textContent=(displayName||'?').charAt(0).toUpperCase();
-  document.getElementById('userMenuAthlete').innerHTML=`
-    <div class="user-menu-name">${escapeHtml(displayName)}</div>
-    <button class="user-menu-action" id="switchAccountsBtn">Switch Accounts</button>`;
-  document.getElementById('switchAccountsBtn').addEventListener('click', async()=>{
-    await apiFetch('/auth/logout',{method:'POST'}).catch(()=>{});
-    clearSession();
-    location.reload();
-  });
-  renderProgramsMenu(programs);
-}
-function renderProgramsMenu(programs){
-  const wrap=document.getElementById('userMenuPrograms');
-  wrap.innerHTML = programs.length
-    ? programs.map(p=>`<div class="program-item${String(p.id)===String(activeProgramId)?' active':''}" data-pid="${p.id}">${escapeHtml(p.name)}</div>`).join('')
-    : '';
-  wrap.querySelectorAll('.program-item').forEach(item=>{
-    item.addEventListener('click', async()=>{
-      if(item.dataset.pid===String(activeProgramId)) return;
-      userMenu.classList.remove('show');
-      await loadProgram(item.dataset.pid);
-    });
-  });
-}
-function renderLoggedOutMenu(){
-  userMenuBtn.textContent='?';
-  document.getElementById('userMenuAthlete').innerHTML=`<button class="user-menu-action" id="loginMenuBtn">Log in</button>`;
-  document.getElementById('loginMenuBtn').addEventListener('click', showLogin);
-  document.getElementById('userMenuPrograms').innerHTML='';
-}
-
-/* ---------------- LOGIN / INIT FLOW ---------------- */
-function showLogin(){
-  document.body.classList.add('pre-login');
-  document.getElementById('loginScreen').classList.add('show');
-  renderLoggedOutMenu();
-}
-function hideLogin(){
-  document.body.classList.remove('pre-login');
-  document.getElementById('loginScreen').classList.remove('show');
-}
-function showNoProgramsState(){
-  document.querySelector('.tabs').style.display='none';
-  const logPanel=document.getElementById('panel-log');
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  logPanel.classList.add('active');
-  logPanel.innerHTML='<div class="sim-empty"><h3>No training program yet</h3><p>Reach out to David to get a training program assigned to your account.</p></div>';
-}
-
-async function loadProgram(programId){
-  activeProgramId = String(programId);
-  try{ localStorage.setItem(ACTIVE_PROGRAM_KEY, activeProgramId); }catch(e){}
-  const cfgRes = await apiFetch(`/program/${activeProgramId}/config`);
+/* ---------------- INIT (loads David's Hyrox Barcelona Nov 2026 program, read-only) ---------------- */
+async function init(){
+  const cfgRes = await publicFetch('/config');
   const cfg = await cfgRes.json();
   ACTIVITIES = cfg.activityTypes.map(a=>({key:a.key,label:a.label}));
   ACT_MAP = Object.fromEntries(ACTIVITIES.map(a=>[a.key,a.label]));
   ACT_INFO = Object.fromEntries(cfg.activityTypes.map(a=>[a.key,a.infoText]));
-  populateActivitySelect();
   deriveWeeks(cfg.phases);
-  const programName = (programsList.find(p=>String(p.id)===activeProgramId)||{}).name || 'Training plan';
-  state = loadLocal() || newState(programName);
+  const stateRes = await publicFetch('/state');
+  const data = await stateRes.json();
+  state = data ? migrate(data) : newState('Training plan');
   titleInput.value=state.title; targetInput.value=state.target;
   buildBoard();
-  renderProgramsMenu(programsList);
-  await pullRemote();
 }
-
-async function afterLogin(){
-  try{
-    const me = await fetchMe();
-    hideLogin();
-    programsList = me.programs || [];
-    renderAccountMenu(me.displayName, programsList);
-    if(!programsList.length){ showNoProgramsState(); return; }
-    let stored = null;
-    try{ stored = localStorage.getItem(ACTIVE_PROGRAM_KEY); }catch(e){}
-    if(!stored || !programsList.some(p=>String(p.id)===String(stored))) stored = String(programsList[0].id);
-    await loadProgram(stored);
-  }catch(e){
-    clearSession();
-    showLogin();
-  }
-}
-async function init(){
-  session = loadSession();
-  if(!session){ showLogin(); return; }
-  await afterLogin();
-}
-
-async function doLoginSubmit(){
-  const u=document.getElementById('loginUsername').value.trim();
-  const p=document.getElementById('loginPassword').value;
-  const errEl=document.getElementById('loginError');
-  errEl.textContent='';
-  if(!u||!p){ errEl.textContent='Enter username and password.'; return; }
-  try{
-    await doLogin(u,p);
-    await afterLogin();
-  }catch(e){ errEl.textContent = e.message || 'Login failed'; }
-}
-document.getElementById('loginSubmit').addEventListener('click', doLoginSubmit);
-document.getElementById('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') doLoginSubmit(); });
-document.getElementById('loginUsername').addEventListener('keydown', e=>{ if(e.key==='Enter') doLoginSubmit(); });
 
 /* ---------------- HELPERS ---------------- */
 function el(tag,cls){ const e=document.createElement(tag); if(cls)e.className=cls; return e; }
