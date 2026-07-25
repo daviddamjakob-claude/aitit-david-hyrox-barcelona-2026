@@ -88,31 +88,42 @@ function weekStatusOf(w, todayISO) {
   if (todayISO < w.startISO) return 'future';
   return 'current';
 }
-function sumWeeks(weeks, stateData) {
-  let sessions = 0, target = 0, km = 0;
+// "1:55" -> 115 (H:MM), "0:46:54" -> 46.9 (H:MM:SS) — mirrors parseHM() in index.html
+function parseHM(v) {
+  if (v == null || v === '') return NaN;
+  const parts = String(v).split(':').map(Number);
+  if (parts.some(isNaN)) return NaN;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
+  return NaN;
+}
+function sumWeeks(weeks, stateData, runProgressKeys) {
+  let sessions = 0, target = 0, zone2Minutes = 0;
   weeks.forEach(w => {
     const wk = stateData && stateData.weeks && stateData.weeks[w.id];
     if (!wk) return;
     const workouts = wk.workouts || [];
     sessions += workouts.length;
     workouts.forEach(x => {
-      const v = parseFloat(x.values && x.values.km);
-      if (!isNaN(v)) km += v;
+      if (runProgressKeys.includes(x.type)) {
+        const mins = parseHM(x.values && x.values.time);
+        if (!isNaN(mins)) zone2Minutes += mins;
+      }
     });
     if (wk.targets) Object.values(wk.targets).forEach(t => { target += Number(t.planned) || 0; });
   });
-  return { sessions, target, km: Math.round(km * 10) / 10, completionPct: target > 0 ? Math.round(sessions / target * 100) : 0 };
+  return { sessions, target, zone2Minutes: Math.round(zone2Minutes), completionPct: target > 0 ? Math.round(sessions / target * 100) : 0 };
 }
-function computeAthleteStats(weeks, stateData) {
+function computeAthleteStats(weeks, stateData, runProgressKeys) {
   const todayISO = isoDate(new Date());
   const currentWeek = weeks.find(w => weekStatusOf(w, todayISO) === 'current');
   const nonFutureWeeks = weeks.filter(w => weekStatusOf(w, todayISO) !== 'future');
   const currentWaveName = currentWeek ? currentWeek.phaseName : null;
   const waveWeeks = currentWaveName ? nonFutureWeeks.filter(w => w.phaseName === currentWaveName) : [];
   return {
-    currentWeek: currentWeek ? sumWeeks([currentWeek], stateData) : { sessions: 0, target: 0, km: 0, completionPct: 0 },
-    currentWave: { ...sumWeeks(waveWeeks, stateData), waveName: currentWaveName },
-    program: sumWeeks(nonFutureWeeks, stateData),
+    currentWeek: currentWeek ? sumWeeks([currentWeek], stateData, runProgressKeys) : { sessions: 0, target: 0, zone2Minutes: 0, completionPct: 0 },
+    currentWave: { ...sumWeeks(waveWeeks, stateData, runProgressKeys), waveName: currentWaveName },
+    program: sumWeeks(nonFutureWeeks, stateData, runProgressKeys),
   };
 }
 
@@ -177,6 +188,10 @@ async function handleLeaderboard(request, env, cors, programId) {
   if (!(await athleteHasProgram(env, athleteId, programId))) return json({ error: 'Forbidden' }, 403, cors);
   const phasesRes = await env.DB.prepare('SELECT name, start_date AS startDate, end_date AS endDate FROM phases WHERE program_id = ? ORDER BY sort_order').bind(programId).all();
   const weeks = deriveWeeksWithIds(phasesRes.results);
+  const runProgressRes = await env.DB.prepare(
+    'SELECT a.key FROM activity_types a JOIN program_activity_types pat ON pat.activity_type_id = a.id WHERE pat.program_id = ? AND a.show_in_run_progress = 1'
+  ).bind(programId).all();
+  const runProgressKeys = runProgressRes.results.map(r => r.key);
   const linked = await env.DB.prepare(
     'SELECT a.id, a.display_name AS displayName FROM athletes a JOIN athlete_programs ap ON ap.athlete_id = a.id WHERE ap.program_id = ? ORDER BY a.id'
   ).bind(programId).all();
@@ -184,7 +199,7 @@ async function handleLeaderboard(request, env, cors, programId) {
   for (const a of linked.results) {
     const stateRow = await env.DB.prepare('SELECT data FROM program_state WHERE athlete_id = ? AND program_id = ?').bind(a.id, programId).first();
     const stateData = stateRow ? JSON.parse(stateRow.data) : null;
-    athletes.push({ athleteId: a.id, displayName: a.displayName, ...computeAthleteStats(weeks, stateData) });
+    athletes.push({ athleteId: a.id, displayName: a.displayName, ...computeAthleteStats(weeks, stateData, runProgressKeys) });
   }
   return json({ athletes }, 200, cors);
 }
