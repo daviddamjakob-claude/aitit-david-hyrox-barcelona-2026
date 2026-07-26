@@ -277,14 +277,18 @@ document.getElementById('saveAllActivitiesBtn').addEventListener('click', async(
   const msg = document.getElementById('activityTypeMsg');
   const cards = [...document.querySelectorAll('.activity-card')];
   try{
-    for(const card of cards){
-      await api(`/admin/activity-types/${card.dataset.key}`, {method:'PUT', body: JSON.stringify({
-        label: card.querySelector('[data-f="label"]').value,
-        infoText: card.querySelector('[data-f="infoText"]').value,
-      })});
-    }
+    // Each card is an independent write (own key, no shared row) — same fix shape as the
+    // athlete-save latency fix: run them concurrently instead of one PUT at a time.
+    await Promise.all(cards.map(card=>{
+      const key = card.dataset.key;
+      const label = card.querySelector('[data-f="label"]').value;
+      const infoText = card.querySelector('[data-f="infoText"]').value;
+      const at = activityTypes.find(a=>a.key===key);
+      if(at){ at.label=label; at.infoText=infoText; }
+      return api(`/admin/activity-types/${key}`, {method:'PUT', body: JSON.stringify({label,infoText})});
+    }));
     msg.className='msg ok'; msg.textContent='All changes saved.';
-    await loadActivityTypes();
+    renderNewProgramActivityChecks();
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 });
 document.getElementById('openCreateActivityBtn').addEventListener('click', ()=>{
@@ -330,8 +334,9 @@ async function deleteProgram(programId){
   if(!confirm(`Delete program "${p?p.name:programId}"? This removes all its phases, activity links, and logged training data. This cannot be undone.`)) return;
   try{
     await api(`/admin/programs/${programId}`, {method:'DELETE'});
-    await loadPrograms();
-    await loadAthletes();
+    // Refreshing programs and athletes are independent reads — no need to wait on one before
+    // starting the other.
+    await Promise.all([loadPrograms(), loadAthletes()]);
   }catch(e){ alert(e.message); }
 }
 function renderNewProgramActivityChecks(){
@@ -413,13 +418,15 @@ async function savePhases(programId){
   const msg = document.getElementById(`editorMsg-${programId}`);
   const rows = [...document.querySelectorAll(`#phases-${programId} [data-phase-id]`)];
   try{
-    for(const row of rows){
-      await api(`/admin/programs/${programId}/phases/${row.dataset.phaseId}`, {method:'PUT', body: JSON.stringify({
+    // Each row is an independent write (own phase id) — same fix shape as the athlete-save and
+    // activity-save latency fixes: run them concurrently instead of one PUT at a time.
+    await Promise.all(rows.map(row=>
+      api(`/admin/programs/${programId}/phases/${row.dataset.phaseId}`, {method:'PUT', body: JSON.stringify({
         name: row.querySelector('[data-f="name"]').value,
         startDate: row.querySelector('[data-f="startDate"]').value,
         endDate: row.querySelector('[data-f="endDate"]').value,
-      })});
-    }
+      })})
+    ));
     msg.className='msg ok'; msg.textContent='Phases saved.';
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
