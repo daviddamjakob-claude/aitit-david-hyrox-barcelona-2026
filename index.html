@@ -8,17 +8,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
 <style>
 :root{
-  /* Ice Mint — light */
-  --bg:#F0F5F2; --s1:#FFFFFF; --s2:#F7FBF9; --s3:#EBF2EE;
+  /* Ice Mint — light (tokens shared with admin/index.html live in shared.css) */
+  --s1:#FFFFFF; --s2:#F7FBF9;
   --s1h:#EEF6F2; --s2h:#F0F7F3; --s3h:#E2ECE7;
-  --border:#DCE7E2; --cardborder:#CFDED7;
-  --muted:#5E8677; --muted2:#93AEA2; --mid:#37624F;
-  --accent:#1D6E50; --accentdark:#175A41; --heromid:#2E8862;
-  --mint:#C8F0E0; --ink:#0C1512; --deep:#1D6E50;
-  --btntext:#FFFFFF; --track:#DCEAE3;
-  --col:340px; --shadow:0 1px 2px rgba(20,40,32,.05);
+  --border:#DCE7E2;
+  --heromid:#2E8862;
+  --mint:#C8F0E0; --deep:#1D6E50;
+  --track:#DCEAE3;
+  --col:340px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -428,9 +428,9 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 </div>
 <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none">
 
+<script src="shared.js"></script>
 <script>
 /* ---------------- API / AUTH ---------------- */
-const API_BASE = 'https://aitit-training-os.david-damjakob.workers.dev';
 const SESSION_KEY = 'aitit_session_v1';
 const ACTIVE_PROGRAM_KEY = 'aitit_active_program_v1';
 
@@ -1378,9 +1378,8 @@ document.getElementById('loginPwdToggle').addEventListener('click', ()=>{
   btn.textContent = showing ? 'Show' : 'Hide';
 });
 
-/* ---------------- HELPERS ---------------- */
+/* ---------------- HELPERS (escapeHtml/API_BASE come from shared.js) ---------------- */
 function el(tag,cls){ const e=document.createElement(tag); if(cls)e.className=cls; return e; }
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); if(isNaN(d))return iso; return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }
 
 /* ---------------- INIT ---------------- */

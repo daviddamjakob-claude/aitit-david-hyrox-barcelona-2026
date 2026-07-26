@@ -6,13 +6,9 @@
 <title>Admin Center — Training OS by aitit</title>
 <link rel="icon" type="image/svg+xml" href="../favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared.css">
 <style>
-:root{
-  --bg:#F0F5F2; --s3:#EBF2EE; --cardborder:#CFDED7;
-  --muted:#5E8677; --muted2:#93AEA2; --mid:#37624F;
-  --accent:#1D6E50; --accentdark:#175A41; --ink:#0C1512;
-  --btntext:#FFFFFF; --shadow:0 1px 2px rgba(20,40,32,.05);
-}
+/* Design tokens (--bg, --accent, etc.) now come from shared.css */
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg); color:var(--mid); font-family:"Space Grotesk",system-ui,sans-serif; padding:36px 32px 60px; max-width:960px; margin:0 auto}
 h1{font-family:"Syne"; font-weight:800; font-size:26px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin-bottom:6px}
@@ -146,16 +142,14 @@ h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase
   </div>
 </div>
 
+<script src="../shared.js"></script>
 <script>
-const API_BASE = 'https://aitit-training-os.david-damjakob.workers.dev';
-
 async function api(path, opts){
   const res = await fetch(API_BASE+path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
   const data = await res.json().catch(()=>null);
   if(!res.ok) throw new Error((data&&data.error)||'Request failed');
   return data;
 }
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 document.querySelectorAll('[data-close-modal]').forEach(btn=> btn.addEventListener('click', ()=> closeModal(btn.dataset.closeModal)));
