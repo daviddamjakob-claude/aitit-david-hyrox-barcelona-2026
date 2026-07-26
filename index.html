@@ -304,12 +304,20 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
   .board{flex-wrap:wrap}
 }
 
+.mobile-headmeta{display:none}
 @media (max-width:700px){
   .plan-title,.plan-target{max-width:none}
   .brandrow{position:relative; padding-top:20px}
   .headmeta{display:none}
   .controls{position:absolute; top:16px; right:28px}
   .saved{background:var(--s1); padding:3px 8px; border-radius:20px; box-shadow:var(--shadow)}
+
+  /* The title/target inputs move here from the fixed header — this bar lives inside the
+     scrolling panel content (between the tabs and the week-picker) so it scrolls away like
+     everything else, rather than permanently occupying space in the fixed header. */
+  .mobile-headmeta{display:flex; flex-direction:column; gap:2px; padding:14px 2px 10px}
+  .mobile-headmeta .plan-title{margin-left:0; padding:2px 4px}
+  .mobile-headmeta .plan-target{margin-left:0; padding:2px 4px}
 
   /* Week headers become a horizontally-scrolling chip menu; the board below shows
      one week at a time and only ever scrolls vertically — two single-axis scroll
@@ -379,7 +387,10 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
   </nav>
 </header>
 
-<section class="panel active" id="panel-log"><div class="week-picker" id="weekPicker"></div><div class="board" id="board"></div></section>
+<section class="panel active" id="panel-log"><div class="mobile-headmeta">
+    <input class="plan-title" id="planTitleMobile" value="">
+    <input class="plan-target" id="planTargetMobile" value="">
+  </div><div class="week-picker" id="weekPicker"></div><div class="board" id="board"></div></section>
 
 <section class="panel" id="panel-analytics"><div id="analytics"></div></section>
 
@@ -522,7 +533,13 @@ let WEEKS = [];
 let mobileSelectedWeek = null;
 
 function fmtMonthDay(d){ return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
-function isoDate(d){ return d.toISOString().slice(0,10); }
+// Local calendar date, not UTC — toISOString() shifts to the previous day for any timezone ahead
+// of UTC (e.g. Barcelona/CEST) during the early-morning hours, which was silently moving week
+// boundaries a day early and made the mobile week-picker jump to the next week too soon.
+function isoDate(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function deriveWeeks(phasesCfg){
   PHASES = []; WEEKS = [];
   let wn = 0;
@@ -612,6 +629,7 @@ async function pullRemote(){
     if(data) state=migrate(data);
     try{ localStorage.setItem(storeKey(), JSON.stringify(state)); }catch(e){}
     titleInput.value=state.title; targetInput.value=state.target;
+  titleInputMobile.value=state.title; targetInputMobile.value=state.target;
     buildBoard();
     loadLeaderboard(); // prefetch so opening the Analytics tab is instant; not re-fetched on tab switch
     if(document.getElementById('panel-analytics').classList.contains('active')) renderAnalytics();
@@ -1149,7 +1167,7 @@ function renderRunProgressChart(){
   const ticks1=computeTicks(scale1,5), ticks2=computeTicks(scale2,5);
 
   const N=activities.length;
-  const leftM=48, rightM=52, topM=14, bottomM=32;
+  const leftM=48, rightM=52, topM=26, bottomM=32; // topM has extra headroom for the data-point value labels above bars/dots
   // Chart width is measured from the actual container so it always fills the available space —
   // no horizontal scroll on narrow screens, no wasted space on wide ones. Re-measured on resize.
   const availW=container.clientWidth||600;
@@ -1176,15 +1194,17 @@ function renderRunProgressChart(){
     if(isNaN(val)) return '';
     const y=yFor(val,scale1), y0=yFor(scale1.min,scale1);
     const top=Math.min(y,y0), h=Math.max(Math.abs(y0-y),1);
-    return `<rect x="${cx-barW/2}" y="${top}" width="${barW}" height="${h}" rx="3" fill="var(--mint)" stroke="var(--accent)" stroke-width="0.75"/>`;
+    return `<rect x="${cx-barW/2}" y="${top}" width="${barW}" height="${h}" rx="3" fill="var(--mint)" stroke="var(--accent)" stroke-width="0.75"/>
+      <text x="${cx}" y="${Math.max(10,top-6)}" text-anchor="middle" font-size="9" font-family="Space Grotesk" fill="var(--accent)">${fmtTick(val,m1.unit)}</text>`;
   }).join('');
 
   const linePoints=activities.map((a,i)=>{
     const cx=leftM+slotW*i+slotW/2, val=v2[i];
-    return isNaN(val)?null:{x:cx,y:yFor(val,scale2)};
+    return isNaN(val)?null:{x:cx,y:yFor(val,scale2),val};
   });
   const linePath=linePoints.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p.x+','+p.y).join(' ');
-  const dots=linePoints.filter(Boolean).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="var(--accentdark)"/>`).join('');
+  const dots=linePoints.filter(Boolean).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="var(--accentdark)"/>
+    <text x="${p.x}" y="${Math.max(10,p.y-10)}" text-anchor="middle" font-size="9" font-family="Space Grotesk" fill="var(--accentdark)">${fmtTick(p.val,m2.unit)}</text>`).join('');
 
   const dateLabels=activities.map((a,i)=>{
     const cx=leftM+slotW*i+slotW/2, dt=a.values.date?fmtDate(a.values.date):'—';
@@ -1255,10 +1275,15 @@ document.querySelectorAll('.tab').forEach(tab=> tab.addEventListener('click',()=
   if(id==='analytics') renderAnalytics();
 }));
 
-/* ---------------- CONTROLS ---------------- */
+/* ---------------- CONTROLS (desktop header + mobile in-panel inputs, kept in sync) ---------------- */
 const titleInput=document.getElementById('planTitle'), targetInput=document.getElementById('planTarget');
-titleInput.addEventListener('input',()=>{ state.title=titleInput.value; save(); });
-targetInput.addEventListener('input',()=>{ state.target=targetInput.value; save(); });
+const titleInputMobile=document.getElementById('planTitleMobile'), targetInputMobile=document.getElementById('planTargetMobile');
+function setTitle(v){ state.title=v; titleInput.value=v; titleInputMobile.value=v; save(); }
+function setTarget(v){ state.target=v; targetInput.value=v; targetInputMobile.value=v; save(); }
+titleInput.addEventListener('input',()=> setTitle(titleInput.value));
+titleInputMobile.addEventListener('input',()=> setTitle(titleInputMobile.value));
+targetInput.addEventListener('input',()=> setTarget(targetInput.value));
+targetInputMobile.addEventListener('input',()=> setTarget(targetInputMobile.value));
 
 /* ---------------- USER MENU ---------------- */
 const userMenuBtn=document.getElementById('userMenuBtn'), userMenu=document.getElementById('userMenu');
@@ -1330,6 +1355,7 @@ async function loadProgram(programId){
   const programName = (programsList.find(p=>String(p.id)===activeProgramId)||{}).name || 'Training plan';
   state = loadLocal() || newState(programName);
   titleInput.value=state.title; targetInput.value=state.target;
+  titleInputMobile.value=state.title; targetInputMobile.value=state.target;
   buildBoard();
   renderProgramsMenu(programsList);
   await pullRemote();
