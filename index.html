@@ -83,6 +83,8 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 .user-menu-wrap{position:relative}
 .user-icon-btn{width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; border:none; cursor:pointer; font-family:"Syne"; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; transition:.15s}
 .user-icon-btn:hover{background:var(--accentdark)}
+.feedback-icon-btn{background:transparent; border:1.5px solid var(--accent); color:var(--accent)}
+.feedback-icon-btn:hover{background:var(--accent); color:#fff}
 .user-menu{display:none; position:absolute; top:calc(100% + 10px); right:0; width:240px; background:#fff; border:0.5px solid var(--cardborder); border-radius:8px; box-shadow:0 12px 40px rgba(12,21,18,.16); padding:14px; z-index:41}
 .user-menu.show{display:block}
 .user-menu-section{margin-bottom:14px}
@@ -256,6 +258,7 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
 .rp-legend{display:flex; gap:16px; margin-bottom:8px; font-size:10.5px; color:var(--muted)}
 .rp-legend-item{display:flex; align-items:center; gap:6px}
 .rp-chart-scroll{position:relative; padding-bottom:2px}
+.rp-chart-scroll svg{display:block}
 .rp-hit{cursor:pointer}
 .rp-tooltip{display:none; position:absolute; background:#fff; border:0.5px solid var(--cardborder); border-radius:6px; padding:9px 11px; font-size:11px; line-height:1.6; color:var(--mid); box-shadow:0 8px 24px rgba(12,21,18,.16); z-index:30; pointer-events:none; white-space:normal; max-width:200px}
 .rp-tooltip.show{display:block}
@@ -309,13 +312,14 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
   .plan-title,.plan-target{max-width:none}
   .brandrow{position:relative; padding-top:20px}
   .headmeta{display:none}
-  .controls{position:absolute; top:16px; right:28px}
+  .controls{position:absolute; top:27px; right:28px}
   .saved{background:var(--s1); padding:3px 8px; border-radius:20px; box-shadow:var(--shadow)}
 
   /* The title/target inputs move here from the fixed header — this bar lives inside the
      scrolling panel content (between the tabs and the week-picker) so it scrolls away like
-     everything else, rather than permanently occupying space in the fixed header. */
-  .mobile-headmeta{display:flex; flex-direction:column; gap:2px; padding:14px 2px 10px}
+     everything else, rather than permanently occupying space in the fixed header. No extra
+     top padding here — #panel-log's own top padding already provides the gap from the tabs. */
+  .mobile-headmeta{display:flex; flex-direction:column; gap:2px; padding:0 2px 10px}
   .mobile-headmeta .plan-title{margin-left:0; padding:2px 4px}
   .mobile-headmeta .plan-target{margin-left:0; padding:2px 4px}
 
@@ -364,6 +368,9 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
     </div>
     <div class="controls">
       <span class="saved" id="savedFlag">saved</span>
+      <button class="user-icon-btn feedback-icon-btn" id="feedbackBtn" aria-label="Product feedback" title="Product feedback">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
       <div class="user-menu-wrap">
         <button class="user-icon-btn" id="userMenuBtn" aria-label="Account menu">?</button>
         <div class="user-menu" id="userMenu">
@@ -420,6 +427,19 @@ body.pre-login .topbar, body.pre-login .panel{display:none}
     <div class="modal-actions">
       <button class="btn" id="mCancel">cancel</button>
       <button class="btn mint" id="mSave">save workout</button>
+    </div>
+  </div>
+</div>
+
+<!-- product feedback modal -->
+<div class="overlay" id="feedbackOverlay">
+  <div class="modal">
+    <h3>Product feedback is amazing!</h3>
+    <div class="field" style="margin-top:16px"><textarea id="feedbackText" rows="6" placeholder="Tell us what's working, what's not, or what you'd love to see…"></textarea></div>
+    <div class="login-error" id="feedbackMsg"></div>
+    <div class="modal-actions">
+      <button class="btn" id="feedbackCancel">Cancel</button>
+      <button class="btn mint" id="feedbackSubmit">Send</button>
     </div>
   </div>
 </div>
@@ -1168,10 +1188,14 @@ function renderRunProgressChart(){
 
   const N=activities.length;
   const leftM=48, rightM=52, topM=26, bottomM=32; // topM has extra headroom for the data-point value labels above bars/dots
-  // Chart width is measured from the actual container so it always fills the available space —
-  // no horizontal scroll on narrow screens, no wasted space on wide ones. Re-measured on resize.
+  // Chart width is measured from the actual container, but only stretched to fill it when there's
+  // enough data to actually need that width — with only a couple of activities, bars pack together
+  // at a comfortable width starting from the left edge instead of being spread thin across the
+  // whole card. Re-measured on resize.
   const availW=container.clientWidth||600;
-  const chartW=Math.max(120, availW-leftM-rightM);
+  const maxChartW=Math.max(120, availW-leftM-rightM);
+  const comfortableSlotW=90;
+  const chartW=Math.min(maxChartW, comfortableSlotW*N);
   const slotW=chartW/N;
   const chartH=200;
   const totalW=leftM+chartW+rightM, totalH=topM+chartH+bottomM;
@@ -1284,6 +1308,27 @@ titleInput.addEventListener('input',()=> setTitle(titleInput.value));
 titleInputMobile.addEventListener('input',()=> setTitle(titleInputMobile.value));
 targetInput.addEventListener('input',()=> setTarget(targetInput.value));
 targetInputMobile.addEventListener('input',()=> setTarget(targetInputMobile.value));
+
+/* ---------------- PRODUCT FEEDBACK ---------------- */
+const feedbackOverlay=document.getElementById('feedbackOverlay'), feedbackText=document.getElementById('feedbackText'), feedbackMsg=document.getElementById('feedbackMsg');
+function closeFeedback(){ feedbackOverlay.classList.remove('show'); }
+document.getElementById('feedbackBtn').addEventListener('click',()=>{
+  feedbackText.value=''; feedbackMsg.textContent='';
+  feedbackOverlay.classList.add('show');
+});
+document.getElementById('feedbackCancel').addEventListener('click', closeFeedback);
+feedbackOverlay.addEventListener('click', e=>{ if(e.target===feedbackOverlay) closeFeedback(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && feedbackOverlay.classList.contains('show')) closeFeedback(); });
+document.getElementById('feedbackSubmit').addEventListener('click', async()=>{
+  const text=feedbackText.value.trim();
+  if(!text){ feedbackMsg.textContent='Please enter some feedback first.'; return; }
+  feedbackMsg.textContent='';
+  try{
+    const res=await apiFetch('/feedback', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({feedbackText:text})});
+    if(!res.ok) throw new Error('failed');
+    closeFeedback();
+  }catch(e){ feedbackMsg.textContent='Could not send feedback — please try again.'; }
+});
 
 /* ---------------- USER MENU ---------------- */
 const userMenuBtn=document.getElementById('userMenuBtn'), userMenu=document.getElementById('userMenu');

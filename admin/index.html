@@ -13,6 +13,17 @@
 body{background:var(--bg); color:var(--mid); font-family:"Space Grotesk",system-ui,sans-serif; padding:36px 32px 60px; max-width:960px; margin:0 auto}
 h1{font-family:"Syne"; font-weight:800; font-size:26px; text-transform:uppercase; letter-spacing:-0.01em; color:var(--ink); margin-bottom:6px}
 .sub{font-size:12px; color:var(--muted); letter-spacing:0.03em; margin-bottom:36px; line-height:1.6}
+.admin-tabs{display:flex; gap:22px; margin-bottom:36px; border-bottom:0.5px solid var(--cardborder)}
+.admin-tab{font-family:"Space Grotesk"; font-weight:600; font-size:13px; letter-spacing:0.03em; padding:0 0 11px; background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); cursor:pointer; transition:.15s; margin-bottom:-0.5px}
+.admin-tab:hover{color:var(--ink)}
+.admin-tab.active{color:var(--accent); border-bottom-color:var(--accent)}
+.admin-panel{display:none}
+.admin-panel.active{display:block}
+.feedback-item{padding:14px 0; border-bottom:0.5px solid var(--s3)}
+.feedback-item:last-child{border-bottom:none}
+.feedback-item .who{font-family:"Syne"; font-weight:700; color:var(--ink); font-size:13px}
+.feedback-item .when{font-size:11px; color:var(--muted); margin-left:8px}
+.feedback-item .text{font-size:13px; color:var(--mid); line-height:1.55; margin-top:6px; white-space:pre-wrap}
 .section{margin-bottom:44px}
 .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px}
 h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase; letter-spacing:0.03em; color:var(--accent)}
@@ -78,8 +89,14 @@ h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase
 </head>
 <body>
 <h1>Admin Center</h1>
-<div class="sub">Manage athlete accounts, activity types and training programs. This page is unlisted — protected only by not being linked anywhere.</div>
+<div class="sub">Manage athlete accounts, activity types, training programs, and product feedback. This page is unlisted — protected only by not being linked anywhere.</div>
 
+<nav class="admin-tabs">
+  <button class="admin-tab active" data-tab="settings">OS Settings</button>
+  <button class="admin-tab" data-tab="feedback">Product Feedback</button>
+</nav>
+
+<div class="admin-panel active" id="panel-settings">
 <div class="section">
   <div class="section-head"><h2>Athletes</h2></div>
   <div class="card"><div id="athleteList"></div></div>
@@ -100,6 +117,14 @@ h2{font-family:"Syne"; font-weight:800; font-size:15px; text-transform:uppercase
     <div class="msg" id="activityTypeMsg"></div>
   </div>
   <button class="btn mint create" id="openCreateActivityBtn">+ Create activity type</button>
+</div>
+</div>
+
+<div class="admin-panel" id="panel-feedback">
+<div class="section">
+  <div class="section-head"><h2>Product Feedback</h2></div>
+  <div class="card"><div id="feedbackList"></div></div>
+</div>
 </div>
 
 <!-- Create / manage athlete modal (shared by both flows) -->
@@ -459,10 +484,36 @@ async function saveLinkedActivityTypes(programId){
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
 
+/* ---------------- TABS ---------------- */
+document.querySelectorAll('.admin-tab').forEach(tab=> tab.addEventListener('click', ()=>{
+  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+}));
+
+/* ---------------- PRODUCT FEEDBACK ---------------- */
+let feedback = [];
+function fmtFeedbackDate(s){
+  const d = new Date(s.replace(' ','T')+'Z'); // SQLite datetime('now') is UTC; render in the viewer's local time
+  if(isNaN(d)) return s;
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+async function loadFeedback(){
+  feedback = await api('/admin/feedback');
+  const list = document.getElementById('feedbackList');
+  list.innerHTML = feedback.length ? feedback.map(f=>`
+    <div class="feedback-item">
+      <span class="who">${escapeHtml(f.displayName)}</span><span class="when">${fmtFeedbackDate(f.createdAt)}</span>
+      <div class="text">${escapeHtml(f.feedbackText)}</div>
+    </div>`).join('') : '<div class="empty-note">No feedback yet.</div>';
+}
+
 (async function init(){
   await loadActivityTypes();
   await loadPrograms();
   await loadAthletes();
+  await loadFeedback();
 })();
 </script>
 </body>
